@@ -1,9 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Docker.DotNet;
+﻿using Docker.DotNet;
 using Docker.DotNet.Models;
 using Npgsql;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 public class DatabaseInitializer
 {
@@ -46,6 +47,31 @@ public class DatabaseInitializer
 
     private async Task StartContainer(DockerClient client)
     {
+        var containers = await client.Containers.ListContainersAsync(
+        new ContainersListParameters { All = true });
+
+        var existingContainer = containers
+            .FirstOrDefault(c => c.Names.Any(n => n.Trim('/') == ContainerName));
+
+        if (existingContainer != null)
+        {
+            Console.WriteLine("Контейнер уже существует.");
+
+            if (existingContainer.State != "running")
+            {
+                Console.WriteLine("Контейнер остановлен. Запуск...");
+                await client.Containers.StartContainerAsync(existingContainer.ID, null);
+            }
+            else
+            {
+                Console.WriteLine("Контейнер уже запущен.");
+            }
+
+            return;
+        }
+
+        Console.WriteLine("Создание нового контейнера...");
+
         // Настройка портов (5532 на хосте -> 5432 в контейнере)
         var hostConfig = new HostConfig
         {
@@ -57,13 +83,14 @@ public class DatabaseInitializer
         };
 
         // Создание контейнера
-        var response = await client.Containers.CreateContainerAsync(new CreateContainerParameters
-        {
-            Image = $"{ImageName}:{Tag}",
-            Name = ContainerName,
-            Env = new List<string> { $"POSTGRES_PASSWORD={Password}" },
-            HostConfig = hostConfig
-        });
+        var response = await client.Containers.CreateContainerAsync(
+            new CreateContainerParameters
+            {
+                Image = $"{ImageName}:{Tag}",
+                Name = ContainerName,
+                Env = new List<string> { $"POSTGRES_PASSWORD={Password}" },
+                HostConfig = hostConfig
+            });
 
         // Запуск
         await client.Containers.StartContainerAsync(response.ID, null);
@@ -130,5 +157,45 @@ public class DatabaseInitializer
         using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
         Console.WriteLine("Таблицы и индексы созданы.");
+    }
+
+    public async Task PrintAllTablesAsync()
+    {
+        using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        string[] tables =
+        {
+            "daily_records",
+            "rounds",
+            "trips",
+            "trip_stops"
+        };
+
+        foreach (var table in tables)
+        {
+            Console.WriteLine($"\n===== Содержимое таблицы {table} =====");
+
+            using var command = new NpgsqlCommand($"SELECT * FROM {table}", connection);
+            using var reader = await command.ExecuteReaderAsync();
+
+            if (!reader.HasRows)
+            {
+                Console.WriteLine("Таблица пустая.");
+            }
+            else
+            {
+                while (await reader.ReadAsync())
+                {
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        Console.Write($"{reader.GetName(i)}: {reader.GetValue(i)} | ");
+                    }
+                    Console.WriteLine();
+                }
+            }
+
+            await reader.CloseAsync();
+        }
     }
 }

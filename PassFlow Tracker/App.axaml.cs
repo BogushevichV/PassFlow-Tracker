@@ -1,11 +1,14 @@
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using PassFlow_Tracker.Services;
 using PassFlow_Tracker.ViewModels;
 using PassFlow_Tracker.Views;
+using System;
+using System.IO;
+using System.Linq;
 
 namespace PassFlow_Tracker
 {
@@ -16,8 +19,22 @@ namespace PassFlow_Tracker
             AvaloniaXamlLoader.Load(this);
         }
 
-        public override void OnFrameworkInitializationCompleted()
+        public override async void OnFrameworkInitializationCompleted()
         {
+            var dbInitializer = new DatabaseInitializer();
+            await dbInitializer.StartAndInitializeAsync();
+
+            Console.WriteLine("¬ведите путь к JSON файлу:");
+            string? path = Console.ReadLine();
+
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                var importer = new JsonImportService();
+                await importer.ImportAsync(path);
+            }
+
+            await dbInitializer.PrintAllTablesAsync();
+
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
