@@ -15,7 +15,7 @@ public class DatabaseInitializer
     private const string DbPort = "5532";
 
     // Connection string для подключения к уже запущенному контейнеру
-    private const string ConnectionString = "Host=localhost;Port=5532;Username=postgres;Password=mysecretpassword;Database=postgres";
+    private const string ConnectionString = "Host=localhost;Port=5532;Username=postgres;Password=mysecretpassword;Database=passflowtrackerdb";
 
     public async Task StartAndInitializeAsync()
     {

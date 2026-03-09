@@ -27,11 +27,15 @@ namespace PassFlow_Tracker
             Console.WriteLine("¬ведите путь к JSON файлу:");
             string? path = Console.ReadLine();
 
+            var analytics = new TransportAnalytics();
+
             if (!string.IsNullOrWhiteSpace(path))
             {
                 var importer = new JsonImportService();
                 await importer.ImportAsync(path);
             }
+
+            await analytics.PrintReportAsync();
 
             await dbInitializer.PrintAllTablesAsync();
 

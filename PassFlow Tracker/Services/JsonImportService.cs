@@ -13,7 +13,7 @@ namespace PassFlow_Tracker.Services
     public class JsonImportService
     {
         private const string ConnectionString =
-            "Host=localhost;Port=5532;Username=postgres;Password=mysecretpassword;Database=postgres";
+            "Host=localhost;Port=5532;Username=postgres;Password=mysecretpassword;Database=passflowtrackerdb";
 
         public async Task ImportAsync(string filePath)
         {
