@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace PassFlow_Tracker.Models
+namespace PassFlow_Tracker.Domain.Models
 {
     // Транспортное средство
     public class RootRecord

@@ -1,21 +1,29 @@
+using Npgsql;
+using PassFlow_Tracker.Configuration;
+using PassFlow_Tracker.Domain.Models;
+using PassFlow_Tracker.Infrastructure.Database;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Npgsql;
-using PassFlow_Tracker.Configuration;
-using PassFlow_Tracker.Models;
 
-namespace PassFlow_Tracker.Services
+namespace PassFlow_Tracker.Application.Services
 {
     public class TransportAnalytics
     {
+        private readonly DbConnectionFactory _db;
+
+        public TransportAnalytics(DbConnectionFactory db)
+        {
+            _db = db;
+        }
+
         // --- Методы получения данных (Аналитический модуль) ---
 
         // 1. Определение часа пик (Гистограмма)
         public async Task<List<PeakHour>> GetPeakHoursAsync()
         {
             var data = new List<PeakHour>();
-            using var conn = new NpgsqlConnection(AppConfig.MainConnection);
+            using var conn = _db.CreateConnection();
             await conn.OpenAsync();
 
             // Извлекаем ЧАС в нужном часовом поясе и считаем сумму вход+выход.
@@ -38,7 +46,7 @@ namespace PassFlow_Tracker.Services
         public async Task<List<StopLoad>> GetTopStopsAsync(int limit = 10)
         {
             var data = new List<StopLoad>();
-            using var conn = new NpgsqlConnection(AppConfig.MainConnection);
+            using var conn = _db.CreateConnection();
             await conn.OpenAsync();
 
             // Используем прямое подставление лимита, чтобы избежать проблем с параметрами,
@@ -62,7 +70,7 @@ namespace PassFlow_Tracker.Services
         public async Task<List<LowTrip>> GetLowActivityTripsAsync(int threshold = 10)
         {
             var data = new List<LowTrip>();
-            using var conn = new NpgsqlConnection(AppConfig.MainConnection);
+            using var conn = _db.CreateConnection();
             await conn.OpenAsync();
 
             // Аналогично убираем параметр и подставляем порог напрямую.

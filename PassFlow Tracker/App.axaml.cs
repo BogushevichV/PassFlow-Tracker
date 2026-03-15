@@ -3,16 +3,17 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
-using PassFlow_Tracker.Services;
-using PassFlow_Tracker.ViewModels;
-using PassFlow_Tracker.Views;
+using PassFlow_Tracker.Application.Services;
+using PassFlow_Tracker.Infrastructure.Database;
+using PassFlow_Tracker.UI.ViewModels;
+using PassFlow_Tracker.UI.Views;
 using System;
 using System.IO;
 using System.Linq;
 
 namespace PassFlow_Tracker
 {
-    public partial class App : Application
+    public partial class App : Avalonia.Application
     {
         public override void Initialize()
         {
@@ -21,17 +22,19 @@ namespace PassFlow_Tracker
 
         public override async void OnFrameworkInitializationCompleted()
         {
-            var dbInitializer = new DatabaseInitializer();
+            var db = new DbConnectionFactory();
+
+            var dbInitializer = new DatabaseInitializer(db);
             await dbInitializer.StartAndInitializeAsync();
 
             Console.WriteLine("¬ведите путь к JSON файлу:");
             string? path = Console.ReadLine();
 
-            var analytics = new TransportAnalytics();
+            var analytics = new TransportAnalytics(db);
 
             if (!string.IsNullOrWhiteSpace(path))
             {
-                var importer = new JsonImportService();
+                var importer = new JsonImportService(db);
                 await importer.ImportAsync(path);
             }
 
