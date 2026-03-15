@@ -1,6 +1,7 @@
 ﻿using Docker.DotNet;
 using Docker.DotNet.Models;
 using Npgsql;
+using PassFlow_Tracker.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,50 +9,67 @@ using System.Threading.Tasks;
 
 public class DatabaseInitializer
 {
-    private const string ImageName = "postgres";
-    private const string Tag = "latest";
-    private const string ContainerName = "my_postgres";
-    private const string Password = "mysecretpassword";
-    private const string DbPort = "5532";
-
-    // Connection string для подключения к уже запущенному контейнеру
-    private const string ConnectionString = "Host=localhost;Port=5532;Username=postgres;Password=mysecretpassword;Database=passflowtrackerdb";
+    private readonly DockerSettings _settings = AppConfig.Docker;
 
     public async Task StartAndInitializeAsync()
     {
         var client = new DockerClientConfiguration().CreateClient();
 
-        // 1. Проверяем наличие образа и скачиваем, если его нет
+        // 1. Проверяем запущен ли Docker
+        await CheckDockerRunningAsync(client);
+
+        // 2. Проверяем наличие образа и скачиваем, если его нет
         await EnsureImageExists(client);
 
-        // 2. Создаем и запускаем контейнер
+        // 3. Создаем и запускаем контейнер
         await StartContainer(client);
 
-        // 3. Ждем готовности БД (Postgres требуется время на старт)
-        Console.WriteLine("Ожидание готовности базы данных...");
-        await Task.Delay(5000);
+        // 4. Ждем готовности БД
+        await WaitForPostgresAsync();
 
-        // 4. Инициализируем таблицы
+        // 5. Проверяем существует ли БД
+        await EnsureDatabaseExistsAsync();
+
+        // 6. Инициализируем таблицы
         await CreateTablesAsync();
 
-        Console.WriteLine("Инициализация успешно завершена!");
+        Console.WriteLine("\nИнициализация успешно завершена!\n");
+    }
+
+    private async Task CheckDockerRunningAsync(DockerClient client)
+    {
+        Console.WriteLine("\t1. Проверка Docker daemon");
+        try
+        {
+            await client.System.PingAsync();
+            Console.WriteLine("Docker daemon доступен.");
+        }
+        catch
+        {
+            Console.WriteLine("Docker daemon недоступен. Запустите Docker Desktop.");
+            Environment.Exit(1);
+        }
     }
 
     private async Task EnsureImageExists(DockerClient client)
     {
+        Console.WriteLine("\n\t2. Проверка наличия образа");
+
         await client.Images.CreateImageAsync(
-            new ImagesCreateParameters { FromImage = ImageName, Tag = Tag },
+            new ImagesCreateParameters { FromImage = _settings.ImageName, Tag = _settings.Tag },
             null,
             new Progress<JSONMessage>(m => Console.WriteLine($"Download: {m.Status}")));
     }
 
     private async Task StartContainer(DockerClient client)
     {
+        Console.WriteLine("\n\t3. Проверка наличия контейнера");
+
         var containers = await client.Containers.ListContainersAsync(
         new ContainersListParameters { All = true });
 
         var existingContainer = containers
-            .FirstOrDefault(c => c.Names.Any(n => n.Trim('/') == ContainerName));
+            .FirstOrDefault(c => c.Names.Any(n => n.Trim('/') == _settings.ContainerName));
 
         if (existingContainer != null)
         {
@@ -77,7 +95,7 @@ public class DatabaseInitializer
         {
             PortBindings = new Dictionary<string, IList<PortBinding>>
             {
-                { "5432/tcp", new List<PortBinding> { new PortBinding { HostPort = DbPort } } }
+                { "5432/tcp", new List<PortBinding> { new PortBinding { HostPort = _settings.DbPort } } }
             },
             Binds = new List<string> { "pgdata:/var/lib/postgresql/data" }
         };
@@ -86,15 +104,71 @@ public class DatabaseInitializer
         var response = await client.Containers.CreateContainerAsync(
             new CreateContainerParameters
             {
-                Image = $"{ImageName}:{Tag}",
-                Name = ContainerName,
-                Env = new List<string> { $"POSTGRES_PASSWORD={Password}" },
+                Image = $"{_settings.ImageName}:{_settings.Tag}",
+                Name = _settings.ContainerName,
+                Env = new List<string> { $"POSTGRES_PASSWORD={_settings.Password}" },
                 HostConfig = hostConfig
             });
 
         // Запуск
         await client.Containers.StartContainerAsync(response.ID, null);
-        Console.WriteLine($"Контейнер {ContainerName} запущен.");
+        Console.WriteLine($"Контейнер {_settings.ContainerName} запущен.");
+    }
+
+    private async Task WaitForPostgresAsync(int maxRetries = 10, int delayMs = 2000)
+    {
+        Console.WriteLine("\n\t4. Проверка готовности БД\n");
+        Console.WriteLine("Ожидание готовности базы данных PostgreSQL...");
+
+        for (int i = 1; i <= maxRetries; i++)
+        {
+            try
+            {
+                using var connection = new NpgsqlConnection(AppConfig.AdminConnection);
+                await connection.OpenAsync();
+
+                Console.WriteLine("PostgreSQL готов к работе.");
+                return;
+            }
+            catch
+            {
+                Console.WriteLine($"Попытка {i}/{maxRetries}: PostgreSQL ещё запускается...");
+                await Task.Delay(delayMs);
+            }
+        }
+
+        Console.WriteLine("Ошибка: PostgreSQL не запустился.");
+        Environment.Exit(1);
+    }
+
+    private async Task EnsureDatabaseExistsAsync()
+    {
+        Console.WriteLine("\n\t5. Проверка наличия БД");
+
+        using var connection = new NpgsqlConnection(AppConfig.AdminConnection);
+        await connection.OpenAsync();
+
+        string checkSql = "SELECT 1 FROM pg_database WHERE datname = 'passflowtrackerdb'";
+
+        using var checkCmd = new NpgsqlCommand(checkSql, connection);
+        var exists = await checkCmd.ExecuteScalarAsync();
+
+        if (exists == null)
+        {
+            Console.WriteLine("База данных passflowtrackerdb не найдена. Создаём...");
+
+            using var createCmd = new NpgsqlCommand(
+                "CREATE DATABASE passflowtrackerdb",
+                connection);
+
+            await createCmd.ExecuteNonQueryAsync();
+
+            Console.WriteLine("База данных создана.\n");
+        }
+        else
+        {
+            Console.WriteLine("База данных уже существует.\n");
+        }
     }
 
     private async Task CreateTablesAsync()
@@ -152,7 +226,7 @@ public class DatabaseInitializer
             CREATE INDEX IF NOT EXISTS idx_trip_stops_name ON trip_stops(stop_name);
             CREATE INDEX IF NOT EXISTS idx_trip_stops_time_from ON trip_stops(time_from);";
 
-        using var connection = new NpgsqlConnection(ConnectionString);
+        using var connection = new NpgsqlConnection(AppConfig.MainConnection);
         await connection.OpenAsync();
         using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
@@ -161,7 +235,7 @@ public class DatabaseInitializer
 
     public async Task PrintAllTablesAsync()
     {
-        using var connection = new NpgsqlConnection(ConnectionString);
+        using var connection = new NpgsqlConnection(AppConfig.MainConnection);
         await connection.OpenAsync();
 
         string[] tables =

@@ -2,26 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Npgsql;
+using PassFlow_Tracker.Configuration;
+using PassFlow_Tracker.Models;
 
-namespace PassFlow_Tracker
+namespace PassFlow_Tracker.Services
 {
     public class TransportAnalytics
     {
-        private const string  ConnectionString =
-            "Host=localhost;Port=5532;Username=postgres;Password=mysecretpassword;Database=passflowtrackerdb";
-
-        // --- Вложенные модели данных (DTO) для удобства переноса в UI ---
-        public record PeakHour(int Hour, long Flow);
-        public record StopLoad(string Name, long Load);
-        public record LowTrip(int Id, DateTime Time, int Count, string Unit);
-
         // --- Методы получения данных (Аналитический модуль) ---
 
         // 1. Определение часа пик (Гистограмма)
         public async Task<List<PeakHour>> GetPeakHoursAsync()
         {
             var data = new List<PeakHour>();
-            using var conn = new NpgsqlConnection(ConnectionString);
+            using var conn = new NpgsqlConnection(AppConfig.MainConnection);
             await conn.OpenAsync();
 
             // Извлекаем ЧАС в нужном часовом поясе и считаем сумму вход+выход.
@@ -44,7 +38,7 @@ namespace PassFlow_Tracker
         public async Task<List<StopLoad>> GetTopStopsAsync(int limit = 10)
         {
             var data = new List<StopLoad>();
-            using var conn = new NpgsqlConnection(ConnectionString);
+            using var conn = new NpgsqlConnection(AppConfig.MainConnection);
             await conn.OpenAsync();
 
             // Используем прямое подставление лимита, чтобы избежать проблем с параметрами,
@@ -68,7 +62,7 @@ namespace PassFlow_Tracker
         public async Task<List<LowTrip>> GetLowActivityTripsAsync(int threshold = 10)
         {
             var data = new List<LowTrip>();
-            using var conn = new NpgsqlConnection(ConnectionString);
+            using var conn = new NpgsqlConnection(AppConfig.MainConnection);
             await conn.OpenAsync();
 
             // Аналогично убираем параметр и подставляем порог напрямую.

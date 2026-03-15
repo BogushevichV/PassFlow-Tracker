@@ -1,4 +1,5 @@
 ﻿using Npgsql;
+using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Models;
 using System;
 using System.Collections.Generic;
@@ -12,9 +13,6 @@ namespace PassFlow_Tracker.Services
 {
     public class JsonImportService
     {
-        private const string ConnectionString =
-            "Host=localhost;Port=5532;Username=postgres;Password=mysecretpassword;Database=passflowtrackerdb";
-
         public async Task ImportAsync(string filePath)
         {
             if (!File.Exists(filePath))
@@ -48,7 +46,7 @@ namespace PassFlow_Tracker.Services
 
         private async Task SaveRecordAsync(RootRecord data)
         {
-            await using var connection = new NpgsqlConnection(ConnectionString);
+            await using var connection = new NpgsqlConnection(AppConfig.MainConnection);
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
 
