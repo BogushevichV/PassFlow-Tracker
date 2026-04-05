@@ -3,18 +3,600 @@
         xmlns:vm="using:PassFlow_Tracker.UI.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
         x:Class="PassFlow_Tracker.UI.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
+        x:CompileBindings="False"
         Icon="/Assets/avalonia-logo.ico"
-        Title="PassFlow_Tracker">
+        Title="Система анализа пассажиропотока"
+        MinWidth="900" MinHeight="600"
+        Background="#F8FAFC">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
+  <Window.Styles>
+    <!-- Ribbon Button Style -->
+    <Style Selector="Button.ribbon">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="BorderBrush" Value="#E2E8F0"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="6,4"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.ribbon:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#F1F5F9"/>
+    </Style>
+    <Style Selector="Button.ribbon:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="#E2E8F0"/>
+    </Style>
+    <!-- Tab Button -->
+    <Style Selector="Button.tab">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="1,1,1,0"/>
+      <Setter Property="CornerRadius" Value="6,6,0,0"/>
+      <Setter Property="Padding" Value="14,8"/>
+      <Setter Property="Foreground" Value="#64748B"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+    <Style Selector="Button.tab:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#E2E8F0"/>
+    </Style>
+    <Style Selector="Button.tab.active">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="BorderBrush" Value="#E2E8F0"/>
+      <Setter Property="Foreground" Value="#1D4ED8"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <!-- DataGrid cell editing -->
+    <Style Selector="DataGrid">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+      <Setter Property="HorizontalGridLinesBrush" Value="#F1F5F9"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="RowBackground" Value="White"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+    <Style Selector="DataGridColumnHeader">
+      <Setter Property="Background" Value="#F8FAFC"/>
+      <Setter Property="Foreground" Value="#475569"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="BorderBrush" Value="#E2E8F0"/>
+      <Setter Property="BorderThickness" Value="0,0,0,1"/>
+      <Setter Property="MinWidth" Value="60"/>
+    </Style>
+    <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
+      <Setter Property="Fill" Value="#F8FAFC"/>
+      <Setter Property="Opacity" Value="1"/>
+    </Style>
+  </Window.Styles>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+  <Design.DataContext>
+    <vm:MainWindowViewModel/>
+  </Design.DataContext>
 
+  <Grid RowDefinitions="Auto,Auto,*" x:CompileBindings="False">
+
+    <!-- ===== RIBBON HEADER ===== -->
+    <Border Grid.Row="0" Background="#1E293B">
+      <Grid ColumnDefinitions="*,Auto" Margin="12,6">
+        <TextBlock Text="Система анализа пассажиропотока"
+                   Foreground="White" FontWeight="SemiBold" FontSize="13"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Classes="ribbon" Background="Transparent"
+                BorderBrush="Transparent" Padding="4">
+          <PathIcon Data="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.32.07-.64.07-.98s-.03-.67-.07-1l2.16-1.63c.19-.15.24-.42.12-.64l-2.05-3.55c-.12-.22-.39-.3-.61-.22l-2.55 1c-.53-.4-1.1-.73-1.72-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.62.25-1.19.58-1.72.98l-2.55-1c-.22-.08-.49 0-.61.22L2.2 8.82c-.12.22-.07.49.12.64L4.48 11.1c-.04.33-.07.65-.07.98s.03.66.07.98l-2.16 1.64c-.19.15-.24.42-.12.64l2.05 3.55c.12.22.39.3.61.22l2.55-1c.53.4 1.1.73 1.72.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.62-.25 1.19-.58 1.72-.98l2.55 1c.22.08.49 0 .61-.22l2.05-3.55c.12-.22.07-.49-.12-.64l-2.16-1.64z"
+                   Width="16" Height="16" Foreground="#94A3B8"/>
+        </Button>
+      </Grid>
+    </Border>
+
+    <!-- ===== TOOLBAR / RIBBON ===== -->
+    <Border Grid.Row="1" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Horizontal" Margin="8,6" Spacing="0">
+
+          <!-- GROUP: Файл -->
+          <StackPanel Margin="0,0,16,0">
+            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,4">
+              <Button Classes="ribbon">
+                <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                  <PathIcon Data="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"
+                            Width="18" Height="18" Foreground="#D97706"/>
+                  <TextBlock Text="Загрузить JSON" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="ribbon">
+                <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                  <PathIcon Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3zm3-10H5V5h10v4z"
+                            Width="18" Height="18" Foreground="#2563EB"/>
+                  <TextBlock Text="Сохранить" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Button Classes="ribbon">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <PathIcon Data="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5z"
+                            Width="16" Height="16" Foreground="#D97706"/>
+                  <PathIcon Data="M5 20H19V18H5M19 9H15V3H9V9H5L12 16L19 9Z"
+                            Width="13" Height="13" Foreground="#94A3B8"/>
+                  <TextBlock Text="JSON" FontSize="10"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="ribbon">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <PathIcon Data="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm1 11h-4v3H9l3 3 3-3h-2v-3zm0-5h-4V5l4 4z"
+                            Width="16" Height="16" Foreground="#16A34A"/>
+                  <PathIcon Data="M5 20H19V18H5M19 9H15V3H9V9H5L12 16L19 9Z"
+                            Width="13" Height="13" Foreground="#94A3B8"/>
+                  <TextBlock Text="Excel" FontSize="10"/>
+                </StackPanel>
+              </Button>
+            </StackPanel>
+            <TextBlock Text="ФАЙЛ" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
+                       Margin="0,4,0,0" FontWeight="SemiBold" LetterSpacing="1"/>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Width="1" Background="#E2E8F0" Margin="0,4,16,4"/>
+
+          <!-- GROUP: Правка -->
+          <StackPanel Margin="0,0,16,0">
+            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,4">
+              <Button Classes="ribbon">
+                <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                  <PathIcon Data="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+                            Width="18" Height="18" Foreground="#475569"/>
+                  <TextBlock Text="Отменить" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="ribbon">
+                <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                  <PathIcon Data="M18.4 10.6C16.55 9 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c2.12 0 4.04.75 5.52 1.98L13 16h9V7l-3.6 3.6z"
+                            Width="18" Height="18" Foreground="#475569"/>
+                  <TextBlock Text="Вернуть" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+            </StackPanel>
+            <TextBlock Text="ПРАВКА" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
+                       Margin="0,4,0,0" FontWeight="SemiBold" LetterSpacing="1"/>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Width="1" Background="#E2E8F0" Margin="0,4,16,4"/>
+
+          <!-- GROUP: Форматирование -->
+          <StackPanel Margin="0,0,16,0">
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
+              <!-- Шкала button with popover -->
+              <Grid>
+                <Button Classes="ribbon" Command="{Binding ToggleColorMenuCommand}">
+                  <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center" Width="52">
+                    <PathIcon Data="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
+                              Width="18" Height="18" Foreground="#6366F1"/>
+                    <TextBlock Text="Шкала" FontSize="10" HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Button>
+
+                <!-- Color Menu Popover -->
+                <Popup IsOpen="{Binding ShowColorMenu}" Placement="Bottom"
+                       IsLightDismissEnabled="True">
+                  <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1"
+                          CornerRadius="6" Padding="14" Width="260"
+                          BoxShadow="0 8 24 0 #1A000000">
+                    <StackPanel Spacing="12">
+                      <TextBlock Text="Настройка градиента" FontWeight="SemiBold" FontSize="13"/>
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="Направление" FontSize="11" Foreground="#64748B"/>
+                        <ComboBox SelectedIndex="0" HorizontalAlignment="Stretch" FontSize="12">
+                          <ComboBoxItem Content="Мин. → Макс. (Светлый к тёмному)"/>
+                          <ComboBoxItem Content="Макс. → Мин. (Тёмный к светлому)"/>
+                        </ComboBox>
+                      </StackPanel>
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="Цветовая гамма" FontSize="11" Foreground="#64748B"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <Border Width="24" Height="24" CornerRadius="4" Background="#DBEAFE"
+                                  BorderBrush="#3B82F6" BorderThickness="2" Cursor="Hand"/>
+                          <Border Width="24" Height="24" CornerRadius="4" Background="#DCFCE7"
+                                  BorderBrush="#E2E8F0" BorderThickness="1" Cursor="Hand"/>
+                          <Border Width="24" Height="24" CornerRadius="4" Background="#FFE4E6"
+                                  BorderBrush="#E2E8F0" BorderThickness="1" Cursor="Hand"/>
+                          <Border Width="24" Height="24" CornerRadius="4" Background="#FEF9C3"
+                                  BorderBrush="#E2E8F0" BorderThickness="1" Cursor="Hand"/>
+                        </StackPanel>
+                      </StackPanel>
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="Частота смены (шаги)" FontSize="11" Foreground="#64748B"/>
+                        <Slider Minimum="2" Maximum="10" Value="5"/>
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
+                </Popup>
+              </Grid>
+
+              <StackPanel Spacing="4" VerticalAlignment="Center">
+                <Button Classes="ribbon" Command="{Binding ToggleGradientCommand}">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
+                              Width="12" Height="12" Foreground="#2563EB"/>
+                    <TextBlock Text="{Binding GradientButtonLabel}" FontSize="10" FontWeight="Medium"/>
+                  </StackPanel>
+                </Button>
+                <Button Classes="ribbon">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="M4.25 5.61C6.27 8.2 10 13 10 13v6c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-6s3.72-4.8 5.74-7.39A.998.998 0 0 0 18.95 4H5.04a1 1 0 0 0-.79 1.61z"
+                              Width="12" Height="12" Foreground="#475569"/>
+                    <TextBlock Text="Фильтры ячеек" FontSize="10" FontWeight="Medium"/>
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </StackPanel>
+            <TextBlock Text="ФОРМАТИРОВАНИЕ" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
+                       Margin="0,4,0,0" FontWeight="SemiBold" LetterSpacing="1"/>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Width="1" Background="#E2E8F0" Margin="0,4,16,4"/>
+
+          <!-- GROUP: Календарь -->
+          <StackPanel Margin="0,0,16,0">
+            <Grid Margin="0,0,0,4">
+              <Button Classes="ribbon" Command="{Binding ToggleCalendarCommand}">
+                <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center" Width="60">
+                  <PathIcon Data="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"
+                            Width="18" Height="18" Foreground="#0891B2"/>
+                  <TextBlock Text="Период" FontSize="10" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+
+              <!-- Calendar Popover -->
+              <Popup IsOpen="{Binding ShowCalendar}" Placement="Bottom"
+                     IsLightDismissEnabled="True">
+                <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1"
+                        CornerRadius="8" Padding="0" Width="300"
+                        BoxShadow="0 8 24 0 #1A000000">
+                  <StackPanel>
+                    <!-- Calendar Mode Switcher -->
+                    <Border Background="#F8FAFC" CornerRadius="8,8,0,0" Padding="12,10">
+                      <Grid ColumnDefinitions="*,*,*">
+                        <Button Grid.Column="0" Padding="6,4" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
+                                Command="{Binding SetCalendarModeCommand}" CommandParameter="days"
+                                CornerRadius="4" Background="#DBEAFE" BorderThickness="0">
+                          <TextBlock Text="Дни" Foreground="#1D4ED8"/>
+                        </Button>
+                        <Button Grid.Column="1" Padding="6,4" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
+                                Command="{Binding SetCalendarModeCommand}" CommandParameter="months"
+                                CornerRadius="4" Background="Transparent" BorderThickness="0">
+                          <TextBlock Text="Месяцы"/>
+                        </Button>
+                        <Button Grid.Column="2" Padding="6,4" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
+                                Command="{Binding SetCalendarModeCommand}" CommandParameter="years"
+                                CornerRadius="4" Background="Transparent" BorderThickness="0">
+                          <TextBlock Text="Годы"/>
+                        </Button>
+                      </Grid>
+                    </Border>
+
+                    <!-- Calendar Navigation Header -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,10">
+                      <Button Grid.Column="0" Classes="ribbon" Padding="4"
+                              Command="{Binding CalendarPrevCommand}">
+                        <PathIcon Data="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"
+                                  Width="16" Height="16"/>
+                      </Button>
+                      <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 FontWeight="SemiBold" FontSize="13" Foreground="#1E293B"
+                                 Text="{Binding CalendarTitle}"/>
+                      <Button Grid.Column="2" Classes="ribbon" Padding="4"
+                              Command="{Binding CalendarNextCommand}">
+                        <PathIcon Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"
+                                  Width="16" Height="16"/>
+                      </Button>
+                    </Grid>
+
+                    <!-- DAYS MODE -->
+                    <StackPanel Margin="12,0,12,12">
+                    <!-- Day-of-week headers -->
+                      <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,0,0,4">
+                        <TextBlock Grid.Column="0" Text="Пн" FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="Вт" FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="Ср" FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="3" Text="Чт" FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="4" Text="Пт" FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="5" Text="Сб" FontSize="10" Foreground="#64748B" HorizontalAlignment="Center"/>
+                        <TextBlock Grid.Column="6" Text="Вс" FontSize="10" Foreground="#EF4444" HorizontalAlignment="Center"/>
+                      </Grid>
+                      <!-- Week rows (static layout for visual) -->
+                      <ItemsControl>
+                        <ItemsControl.Items>
+                          <!-- Row 1 -->
+                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
+                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="1" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="2" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="3" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="4" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
+                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="5" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
+                          </Grid>
+                          <!-- Row 2 -->
+                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
+                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="6" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="7" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="8" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="9" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="10" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="11" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
+                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="12" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
+                          </Grid>
+                          <!-- Row 3 -->
+                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
+                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="13" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="14" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="15" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="16" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="17" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="18" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
+                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="19" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
+                          </Grid>
+                          <!-- Row 4 - with selected range highlight -->
+                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
+                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="20" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="21" BorderThickness="0" Background="#DBEAFE" Foreground="#1D4ED8" FontWeight="SemiBold"/>
+                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="22" BorderThickness="0" Background="#BFDBFE" Foreground="#1D4ED8"/>
+                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="23" BorderThickness="0" Background="#BFDBFE" Foreground="#1D4ED8"/>
+                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="24" BorderThickness="0" Background="#DBEAFE" Foreground="#1D4ED8" FontWeight="SemiBold"/>
+                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="25" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
+                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="26" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
+                          </Grid>
+                          <!-- Row 5 -->
+                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
+                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="27" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="28" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="29" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="30" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
+                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
+                          </Grid>
+                        </ItemsControl.Items>
+                      </ItemsControl>
+                    </StackPanel>
+
+                    <!-- MONTHS MODE (static visual) -->
+                    <Grid IsVisible="False" Margin="12,0,12,12">
+                      <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="*,*,*">
+                        <Button Grid.Row="0" Grid.Column="0" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Янв"/>
+                        <Button Grid.Row="0" Grid.Column="1" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Фев"/>
+                        <Button Grid.Row="0" Grid.Column="2" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Мар"/>
+                        <Button Grid.Row="0" Grid.Column="3" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Апр"/>
+                        <Button Grid.Row="1" Grid.Column="0" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Май"/>
+                        <Button Grid.Row="1" Grid.Column="1" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Background="#DBEAFE" Foreground="#1D4ED8" FontWeight="SemiBold" Content="Июн"/>
+                        <Button Grid.Row="1" Grid.Column="2" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Июл"/>
+                        <Button Grid.Row="1" Grid.Column="3" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Авг"/>
+                        <Button Grid.Row="2" Grid.Column="0" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Сен"/>
+                        <Button Grid.Row="2" Grid.Column="1" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Окт"/>
+                        <Button Grid.Row="2" Grid.Column="2" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Ноя"/>
+                        <Button Grid.Row="2" Grid.Column="3" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Дек"/>
+                      </Grid>
+                    </Grid>
+
+                    <!-- Footer buttons -->
+                    <Border BorderBrush="#F1F5F9" BorderThickness="0,1,0,0" Padding="12,8">
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="ribbon" Padding="10,5" FontSize="12" Content="Сбросить"/>
+                        <Button Padding="10,5" FontSize="12" FontWeight="Medium"
+                                Background="#2563EB" Foreground="White" CornerRadius="4"
+                                BorderThickness="0" Content="Применить"/>
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                </Border>
+              </Popup>
+            </Grid>
+            <TextBlock Text="ПЕРИОД" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
+                       Margin="0,4,0,0" FontWeight="SemiBold" LetterSpacing="1"/>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Width="1" Background="#E2E8F0" Margin="0,4,16,4"/>
+
+          <!-- GROUP: Анализ -->
+          <StackPanel Margin="0,0,16,0">
+            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
+
+              <!-- Часы пик — без параметра -->
+              <StackPanel Spacing="3" Width="64">
+                <Button Classes="ribbon" HorizontalAlignment="Stretch">
+                  <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                    <PathIcon Data="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"
+                              Width="18" Height="18" Foreground="#7C3AED"/>
+                    <TextBlock Text="Часы пик" FontSize="10" HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Button>
+                <!-- пустой placeholder для выравнивания высоты -->
+                <Border Height="26"/>
+              </StackPanel>
+
+              <!-- Топ остановок + поле лимита -->
+              <StackPanel Spacing="3" Width="64">
+                <Button Classes="ribbon" HorizontalAlignment="Stretch">
+                  <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                    <PathIcon Data="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                              Width="18" Height="18" Foreground="#0891B2"/>
+                    <TextBlock Text="Топ ост." FontSize="10" HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Button>
+                <TextBox Text="10" FontSize="11" Height="26" Padding="4,3"
+                         Watermark="Топ N"
+                         ToolTip.Tip="Количество топ-остановок"/>
+              </StackPanel>
+
+              <!-- Низкая активность + поле порога -->
+              <StackPanel Spacing="3" Width="64">
+                <Button Classes="ribbon" HorizontalAlignment="Stretch">
+                  <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                    <PathIcon Data="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"
+                              Width="18" Height="18" Foreground="#DC2626"/>
+                    <TextBlock Text="Низк. акт." FontSize="10" HorizontalAlignment="Center"/>
+                  </StackPanel>
+                </Button>
+                <TextBox Text="10" FontSize="11" Height="26" Padding="4,3"
+                         Watermark="Порог"
+                         ToolTip.Tip="Порог пассажиров для фильтрации"/>
+              </StackPanel>
+
+            </StackPanel>
+
+            <TextBlock Text="АНАЛИЗ" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
+                       Margin="0,2,0,0" FontWeight="SemiBold" LetterSpacing="1"/>
+          </StackPanel>
+
+          <!-- Divider -->
+          <Border Width="1" Background="#E2E8F0" Margin="0,4,16,4"/>
+
+          <!-- GROUP: Представление -->
+          <StackPanel>
+            <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1"
+                    CornerRadius="8" Padding="4" Margin="0,0,0,4">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Command="{Binding SwitchToTableCommand}"
+                        CornerRadius="6" Padding="10,6" BorderThickness="0"
+                        Background="White">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="M3 3h7v7H3zm0 11h7v7H3zm11-11h7v7h-7zm0 11h7v7h-7z"
+                              Width="15" Height="15" Foreground="#2563EB"/>
+                    <TextBlock Text="ТАБЛИЦА" FontSize="10" FontWeight="Bold" Foreground="#2563EB"/>
+                  </StackPanel>
+                </Button>
+                <Button Command="{Binding SwitchToChartCommand}"
+                        CornerRadius="6" Padding="10,6" BorderThickness="0"
+                        Background="Transparent">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"
+                              Width="15" Height="15" Foreground="#64748B"/>
+                    <TextBlock Text="ГРАФИКИ" FontSize="10" FontWeight="Bold" Foreground="#64748B"/>
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </Border>
+            <TextBlock Text="ПРЕДСТАВЛЕНИЕ" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
+                       FontWeight="SemiBold" LetterSpacing="1"/>
+          </StackPanel>
+
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <Grid Grid.Row="2" RowDefinitions="Auto,*">
+
+      <!-- SUB-NAVIGATION TABS -->
+      <Border Grid.Row="0" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <StackPanel Orientation="Horizontal" Margin="12,8,12,0" Spacing="2">
+
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="all_data">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="M3 3h7v7H3zm0 11h7v7H3zm11-11h7v7h-7zm0 11h7v7h-7z" Width="13" Height="13"/>
+                <TextBlock Text="Все данные"/>
+              </StackPanel>
+            </Button>
+
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="daily_records">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"
+                          Width="13" Height="13"/>
+                <TextBlock Text="Дни"/>
+              </StackPanel>
+            </Button>
+
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="rounds">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
+                          Width="13" Height="13"/>
+                <TextBlock Text="Круги"/>
+              </StackPanel>
+            </Button>
+
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="trips">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm9 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM4 11V6h16v5H4z"
+                          Width="13" Height="13"/>
+                <TextBlock Text="Рейсы"/>
+              </StackPanel>
+            </Button>
+
+            <Button Classes="tab active" Command="{Binding SetActiveTabCommand}" CommandParameter="trip_stops">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
+                          Width="13" Height="13" Foreground="#1D4ED8"/>
+                <TextBlock Text="Остановки"/>
+              </StackPanel>
+            </Button>
+
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- DATA AREA -->
+      <Border Grid.Row="1" Margin="12" Background="White" CornerRadius="8"
+              BorderBrush="#E2E8F0" BorderThickness="1"
+              BoxShadow="0 1 3 0 #0D000000">
+        <Grid RowDefinitions="*,Auto" x:CompileBindings="False">
+
+          <!-- TABLE VIEW -->
+          <DataGrid Grid.Row="0"
+                    IsVisible="{Binding IsTableView}"
+                    ItemsSource="{Binding TripStops}"
+                    CanUserReorderColumns="True"
+                    CanUserResizeColumns="True"
+                    CanUserSortColumns="True"
+                    IsReadOnly="False"
+                    AutoGenerateColumns="False"
+                    HeadersVisibility="Column"
+                    SelectionMode="Extended"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Auto">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="ID" Binding="{ReflectionBinding Id}" Width="50" IsReadOnly="True"/>
+              <DataGridTextColumn Header="№ Остановки" Binding="{ReflectionBinding StopNumber}" Width="Auto"/>
+              <DataGridTextColumn Header="Название остановки" Binding="{ReflectionBinding StopName}" Width="*"/>
+              <DataGridTextColumn Header="Время От" Binding="{ReflectionBinding TimeFrom}" Width="Auto"/>
+              <DataGridTextColumn Header="Время До" Binding="{ReflectionBinding TimeTo}" Width="Auto"/>
+              <DataGridTextColumn Header="Вошло" Binding="{ReflectionBinding Entered}" Width="Auto"/>
+              <DataGridTextColumn Header="Вышло" Binding="{ReflectionBinding Exited}" Width="Auto"/>
+              <DataGridTextColumn Header="Перевезено ↕" Binding="{ReflectionBinding Transported}" Width="Auto"/>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <!-- CHART VIEW (placeholder) -->
+          <Border Grid.Row="0" IsVisible="{Binding IsChartView}"
+                  Background="#F8FAFC" Padding="24">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+              <PathIcon Data="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"
+                        Width="48" Height="48" Foreground="#CBD5E1"/>
+              <TextBlock Text="Графики будут здесь" Foreground="#94A3B8"
+                         FontSize="14" HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Border>
+
+          <!-- STATUS BAR -->
+          <Border Grid.Row="1" BorderBrush="#F1F5F9" BorderThickness="0,1,0,0"
+                  Padding="14,6" Background="#FAFAFA">
+            <TextBlock Text="Данные загружаются из базы данных. Таблица: trip_stops."
+                       FontSize="11" Foreground="#94A3B8"/>
+          </Border>
+
+        </Grid>
+      </Border>
+
+    </Grid>
+  </Grid>
 </Window>
