@@ -22,35 +22,12 @@ namespace PassFlow_Tracker
 
         public override async void OnFrameworkInitializationCompleted()
         {
-            var db = new DbConnectionFactory();
-
-            var dbInitializer = new DatabaseInitializer(db);
-            await dbInitializer.StartAndInitializeAsync();
-
-            Console.WriteLine("¬ведите путь к JSON файлу:");
-            string? path = Console.ReadLine();
-
-            var analytics = new TransportAnalytics(db);
-
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                var importer = new JsonImportService(db);
-                await importer.ImportAsync(path);
-            }
-
-            await analytics.PrintReportAsync();
-
-            await dbInitializer.PrintAllTablesAsync();
-
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
                 // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
                 DisableAvaloniaDataAnnotationValidation();
-                desktop.MainWindow = new MainWindow
-                {
-                    DataContext = new MainWindowViewModel(),
-                };
+                desktop.MainWindow = new MainWindow();
             }
 
             base.OnFrameworkInitializationCompleted();

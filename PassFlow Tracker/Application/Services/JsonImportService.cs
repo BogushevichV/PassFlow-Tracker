@@ -29,27 +29,31 @@ namespace PassFlow_Tracker.Application.Services
                 return;
             }
 
-            string json = await File.ReadAllTextAsync(filePath);
-
-            var options = new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
-            };
+                string json = await File.ReadAllTextAsync(filePath);
 
-            var records = JsonSerializer.Deserialize<List<RootRecord>>(json, options);
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
 
-            if (records == null)
-            {
-                Console.WriteLine("Ошибка десериализации JSON.");
-                return;
+                var records = JsonSerializer.Deserialize<List<RootRecord>>(json, options);
+
+                if (records == null)
+                {
+                    Console.WriteLine("Ошибка десериализации JSON.");
+                    return;
+                }
+
+                foreach (var record in records)
+                {
+                    await SaveRecordAsync(record);
+                }
             }
-
-            foreach (var record in records)
-            {
-                await SaveRecordAsync(record);
+            catch (Exception) {
+                throw;
             }
-
-            Console.WriteLine("Импорт завершён.");
         }
 
         private async Task SaveRecordAsync(RootRecord data)

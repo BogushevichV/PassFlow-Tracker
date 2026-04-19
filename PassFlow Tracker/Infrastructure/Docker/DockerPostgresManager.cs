@@ -84,7 +84,6 @@ namespace PassFlow_Tracker.Infrastructure.Docker
 
             Console.WriteLine("Создание нового контейнера...");
 
-            // Настройка портов (5532 на хосте -> 5432 в контейнере)
             var hostConfig = new HostConfig
             {
                 PortBindings = new Dictionary<string, IList<PortBinding>>
