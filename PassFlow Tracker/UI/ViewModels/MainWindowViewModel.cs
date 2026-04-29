@@ -29,6 +29,11 @@ namespace PassFlow_Tracker.UI.ViewModels
             _analytics = new TransportAnalytics(db);
         }
 
+        [RelayCommand]
+        public async Task InitializeAsync()
+        {
+            await SetActiveTab("trip_stops"); 
+        }
 
         [ObservableProperty]
         private bool isTableView = true;
@@ -139,7 +144,33 @@ namespace PassFlow_Tracker.UI.ViewModels
         private void SetCalendarMode(string mode) => CalendarMode = mode;
 
         [RelayCommand]
-        private void SetActiveTab(string tab) => ActiveTab = tab;
+        private async Task SetActiveTab(string tab)
+        {
+            ActiveTab = tab;
+
+            switch (tab)
+            {
+                case "trip_stops":
+                    await RunTopStops(); 
+                    break;
+                case "trips":
+                    // TODO: Загрузить рейсы
+                    Status = "Загрузка рейсов...";
+                    break;
+                case "rounds":
+                    // TODO: Загрузить круги
+                    Status = "Загрузка кругов...";
+                    break;
+                case "daily_records":
+                    // TODO: Загрузить дни
+                    Status = "Загрузка дней...";
+                    break;
+                case "all_data":
+                    // TODO: Загрузить все данные
+                    Status = "Загрузка всех данных...";
+                    break;
+            }
+        }
 
         [RelayCommand]
         private void CalendarPrev()
