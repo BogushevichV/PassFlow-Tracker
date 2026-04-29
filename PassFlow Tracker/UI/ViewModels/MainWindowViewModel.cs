@@ -4,10 +4,15 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DocumentFormat.OpenXml.Drawing.Charts;
 using PassFlow_Tracker.Application.Services;
+using PassFlow_Tracker.Application.Services.IPC;
+using PassFlow_Tracker.Domain.Models;
+using PassFlow_Tracker.Domain.Models.IPC;
 using PassFlow_Tracker.Infrastructure.Database;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace PassFlow_Tracker.UI.ViewModels
@@ -16,6 +21,7 @@ namespace PassFlow_Tracker.UI.ViewModels
     {
         public Window? MainWindow { get; set; }
 
+        private readonly IpcClient _ipc = new();
         private readonly JsonImportService _jsonService;
         private readonly TransportAnalytics _analytics;
 
@@ -29,6 +35,11 @@ namespace PassFlow_Tracker.UI.ViewModels
             _analytics = new TransportAnalytics(db);
         }
 
+        [RelayCommand]
+        public async Task InitializeAsync()
+        {
+            await SetActiveTab("trip_stops");
+        }
 
         [ObservableProperty]
         private bool isTableView = true;
@@ -139,7 +150,38 @@ namespace PassFlow_Tracker.UI.ViewModels
         private void SetCalendarMode(string mode) => CalendarMode = mode;
 
         [RelayCommand]
-        private void SetActiveTab(string tab) => ActiveTab = tab;
+        private async Task SetActiveTab(string tab)
+        {
+            ActiveTab = tab;
+
+            switch (tab)
+            {
+                case "trip_stops":
+                    await RunTopStops();
+                    Status = "Загружены остановки";
+                    break;
+                case "trips":
+                    // TODO: Реализовать загрузку рейсов
+                    TripStops.Clear();
+                    Status = "Рейсы (в разработке)";
+                    break;
+                case "rounds":
+                    // TODO: Реализовать загрузку кругов
+                    TripStops.Clear();
+                    Status = "Круги (в разработке)";
+                    break;
+                case "daily_records":
+                    // TODO: Реализовать загрузку дней
+                    TripStops.Clear();
+                    Status = "Дни (в разработке)";
+                    break;
+                case "all_data":
+                    // TODO: Реализовать загрузку всех данных
+                    TripStops.Clear();
+                    Status = "Все данные (в разработке)";
+                    break;
+            }
+        }
 
         [RelayCommand]
         private void CalendarPrev()
@@ -173,40 +215,38 @@ namespace PassFlow_Tracker.UI.ViewModels
             else CalendarYear += 12;
         }
 
-
         [RelayCommand]
         private async Task LoadJson()
         {
-            if (MainWindow == null) return;
+            //if (MainWindow == null) return;
 
-            var files = await MainWindow.StorageProvider.OpenFilePickerAsync(
-                new FilePickerOpenOptions
+            //var files = await MainWindow.StorageProvider.OpenFilePickerAsync(
+            //    new FilePickerOpenOptions
+            //    {
+            //        Title = "Выберите JSON",
+            //        AllowMultiple = false,
+            //        FileTypeFilter =
+            //        [
+            //            new FilePickerFileType("JSON")
+            //        {
+            //            Patterns = ["*.json"]
+            //        }
+            //        ]
+            //    });
+
+            //var file = files.FirstOrDefault();
+            //if (file == null) return;
+
+            var response = await _ipc.SendAsync(new IpcRequest
+            {
+                Command = "import_json",
+                Parameters = new()
                 {
-                    Title = "Выберите JSON",
-                    AllowMultiple = false,
-                    FileTypeFilter =
-                    [
-                        new FilePickerFileType("JSON")
-                    {
-                        Patterns = ["*.json"]
-                    }
-                    ]
-                });
+                    ["path"] = "some.path"
+                }
+            });
 
-            var file = files.FirstOrDefault();
-            if (file == null) return;
-
-            Status = "Импорт...";
-
-            try
-            {
-                await _jsonService.ImportAsync(file.Path.LocalPath);
-                Status = "JSON загружен";
-            }
-            catch (Exception ex)
-            {
-                Status = ex.Message;
-            }
+            Status = response.Message;
         }
 
 
@@ -231,19 +271,31 @@ namespace PassFlow_Tracker.UI.ViewModels
         [RelayCommand]
         private async Task RunTopStops()
         {
-            var data = await _analytics.GetTopStopsAsync(TopN);
-
-            TripStops.Clear();
-            foreach (var d in data)
+            var response = await _ipc.SendAsync(new IpcRequest
             {
-                TripStops.Add(new TripStopRowViewModel
+                Command = "top_stops",
+                Parameters = new()
                 {
-                    StopName = d.Name,
-                    Transported = (int)d.Load
-                });
-            }
+                    ["limit"] = TopN.ToString()
+                }
+            });
 
-            Status = $"Топ {TopN}";
+            if (response.Success && response.Data != null)
+            {
+                var json = JsonSerializer.Serialize(response.Data);
+                var data = JsonSerializer.Deserialize<List<StopLoad>>(json);
+
+                TripStops.Clear();
+
+                foreach (var d in data)
+                {
+                    TripStops.Add(new TripStopRowViewModel
+                    {
+                        StopName = d.Name,
+                        Transported = (int)d.Load
+                    });
+                }
+            }
         }
 
         [RelayCommand]
