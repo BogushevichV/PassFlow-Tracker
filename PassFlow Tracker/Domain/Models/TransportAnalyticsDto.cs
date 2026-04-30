@@ -10,4 +10,10 @@ namespace PassFlow_Tracker.Domain.Models
     public record PeakHour(int Hour, long Flow);
     public record StopLoad(string Name, long Load);
     public record LowTrip(int Id, DateTime Time, int Count, string Unit);
+    public record TripStopRow(
+        int StopNumber,
+        string StopName,
+        int Entered,
+        int Exited,
+        int Transported);
 }

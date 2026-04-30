@@ -99,7 +99,37 @@ namespace PassFlow_Tracker.Application.Services
             return data;
         }
 
-        // --- Метод для демонстрации в консоли ---
+        // 4. Остановки сгруппированные (для вкладки trip_stops)
+        public async Task<List<TripStopRow>> GetTripStopsAsync()
+        {
+            var data = new List<TripStopRow>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            // entered, exited, transported — суммируем по всем проходам через остановку
+            const string sql = @"
+                SELECT stop_number, stop_name,
+                       SUM(entered)     AS total_entered,
+                       SUM(exited)      AS total_exited,
+                       SUM(transported) AS total_transported
+                FROM trip_stops
+                WHERE is_duplicate = FALSE
+                GROUP BY stop_number, stop_name
+                ORDER BY stop_number";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new TripStopRow(
+                    Convert.ToInt32(rdr["stop_number"]),
+                    rdr["stop_name"].ToString() ?? "",
+                    Convert.ToInt32(rdr["total_entered"]),
+                    Convert.ToInt32(rdr["total_exited"]),
+                    Convert.ToInt32(rdr["total_transported"])
+                ));
+
+            return data;
+        }
         public async Task PrintReportAsync()
         {
             Console.WriteLine("=== ОТЧЕТ ПО ПАССАЖИРОПОТОКУ ===");

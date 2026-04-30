@@ -32,7 +32,7 @@ namespace PassFlow_Tracker.UI.ViewModels
         [RelayCommand]
         public async Task InitializeAsync()
         {
-            await SetActiveTab("trip_stops"); 
+            await LoadTripStops();
         }
 
         [ObservableProperty]
@@ -151,24 +151,46 @@ namespace PassFlow_Tracker.UI.ViewModels
             switch (tab)
             {
                 case "trip_stops":
-                    await RunTopStops(); 
+                    await LoadTripStops();
                     break;
                 case "trips":
-                    // TODO: Загрузить рейсы
                     Status = "Загрузка рейсов...";
                     break;
                 case "rounds":
-                    // TODO: Загрузить круги
                     Status = "Загрузка кругов...";
                     break;
                 case "daily_records":
-                    // TODO: Загрузить дни
                     Status = "Загрузка дней...";
                     break;
                 case "all_data":
-                    // TODO: Загрузить все данные
                     Status = "Загрузка всех данных...";
                     break;
+            }
+        }
+
+        private async Task LoadTripStops()
+        {
+            Status = "Загрузка остановок...";
+            try
+            {
+                var data = await _analytics.GetTripStopsAsync();
+                TripStops.Clear();
+                foreach (var d in data)
+                {
+                    TripStops.Add(new TripStopRowViewModel
+                    {
+                        StopNumber  = d.StopNumber,
+                        StopName    = d.StopName,
+                        Entered     = d.Entered,
+                        Exited      = d.Exited,
+                        Transported = d.Transported
+                    });
+                }
+                Status = $"Остановки: {data.Count}";
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
             }
         }
 
