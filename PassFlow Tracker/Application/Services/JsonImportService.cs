@@ -2,6 +2,7 @@
 using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Infrastructure.Database;
+using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,6 +15,8 @@ namespace PassFlow_Tracker.Application.Services
 {
     public class JsonImportService
     {
+        private const string LogContext = "JsonImportService";
+
         private readonly DbConnectionFactory _db;
 
         public JsonImportService(DbConnectionFactory db)
@@ -25,39 +28,63 @@ namespace PassFlow_Tracker.Application.Services
         {
             if (!File.Exists(filePath))
             {
+                AppLogger.Warning($"[{LogContext}] Файл не найден: {filePath}");
                 Console.WriteLine("Файл не найден.");
                 return;
             }
 
+            AppLogger.Info($"[{LogContext}] Начало импорта: {filePath}");
+            var startTime = DateTime.Now;
+
             try
             {
                 string json = await File.ReadAllTextAsync(filePath);
+                AppLogger.Info($"[{LogContext}] Файл прочитан: {json.Length} байт");
 
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                };
-
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var records = JsonSerializer.Deserialize<List<RootRecord>>(json, options);
 
                 if (records == null)
                 {
+                    AppLogger.Error($"[{LogContext}] Ошибка десериализации JSON");
                     Console.WriteLine("Ошибка десериализации JSON.");
                     return;
                 }
 
+                AppLogger.Info($"[{LogContext}] Десериализовано записей: {records.Count}");
+
+                int successCount = 0;
+                int errorCount = 0;
+
                 foreach (var record in records)
                 {
-                    await SaveRecordAsync(record);
+                    try
+                    {
+                        await SaveRecordAsync(record);
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+                        AppLogger.Error($"[{LogContext}] Ошибка сохранения записи '{record.Unit}' от {record.Date}", ex);
+                    }
                 }
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Импорт завершён за {duration:F0}мс. Успешно: {successCount}, ошибок: {errorCount}");
             }
-            catch (Exception) {
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Критическая ошибка импорта", ex);
                 throw;
             }
         }
 
+
         private async Task SaveRecordAsync(RootRecord data)
         {
+            AppLogger.Info($"[{LogContext}] Сохранение записи: {data.Unit}, {data.Date}");
+
             await using var connection = _db.CreateConnection();
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
@@ -136,9 +163,12 @@ namespace PassFlow_Tracker.Application.Services
                 }
 
                 await transaction.CommitAsync();
+
+                AppLogger.Info($"[{LogContext}] Запись '{data.Unit}' от {data.Date} сохранена успешно");
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Error($"[{LogContext}] Ошибка сохранения записи '{data.Unit}' от {data.Date}", ex);
                 await transaction.RollbackAsync();
                 throw;
             }

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PassFlow_Tracker.Domain.Models.IPC
+namespace PassFlow_Tracker.Domain.Models.Communication
 {
     public class IpcRequest
     {

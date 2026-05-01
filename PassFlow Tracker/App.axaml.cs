@@ -5,8 +5,9 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using PassFlow_Tracker.Application.Services;
 using PassFlow_Tracker.Application.Services.IPC;
-using PassFlow_Tracker.Domain.Models.IPC;
+using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Database;
+using PassFlow_Tracker.Infrastructure.Logging;
 using PassFlow_Tracker.UI.ViewModels;
 using PassFlow_Tracker.UI.Views;
 using System;
@@ -17,7 +18,7 @@ namespace PassFlow_Tracker
 {
     public partial class App : Avalonia.Application
     {
-        private IpcServer? _ipcServer;
+        private IpcHost? _IpcHost;
 
         public override void Initialize()
         {
@@ -26,27 +27,45 @@ namespace PassFlow_Tracker
 
         public override async void OnFrameworkInitializationCompleted()
         {
-            // --- ИНИЦИАЛИЗАЦИЯ СЕРВИСОВ ---
-            var db = new DbConnectionFactory();
-            var json = new JsonImportService(db);
-            var analytics = new TransportAnalytics(db);
-
-            // --- IPC ---
-            var dispatcher = new CommandDispatcher(json, analytics);
-            _ipcServer = new IpcServer(dispatcher);
-
-            _ = _ipcServer.StartAsync(); // запускаем сервер в фоне
-
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            try
             {
-                // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
-                // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
-                
-                DisableAvaloniaDataAnnotationValidation();
-                desktop.MainWindow = new MainWindow();
-            }
+                AppLogger.Info("Запуск приложения");
 
-            base.OnFrameworkInitializationCompleted();
+                var db = new DbConnectionFactory();
+                var json = new JsonImportService(db);
+                var analytics = new TransportAnalytics(db);
+
+                AppLogger.Info("Сервисы инициализированы");
+
+                var dispatcher = new CommandDispatcher(json, analytics);
+                _IpcHost = new IpcHost(dispatcher);
+
+                _ = _IpcHost.StartAsync();
+
+                if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
+                    // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
+
+                    desktop.Exit += (s, e) =>
+                    {
+                        AppLogger.Info("Приложение завершается, останавливаем IPC-хост...");
+                        _IpcHost?.Stop();
+                        AppLogger.Info("IPC-хост остановлен");
+                    };
+
+                    DisableAvaloniaDataAnnotationValidation();
+                    desktop.MainWindow = new MainWindow();
+                }
+
+                AppLogger.Info("Приложение успешно запущено");
+                base.OnFrameworkInitializationCompleted();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("Критическая ошибка при запуске приложения", ex);
+                throw;
+            }
         }
 
 
