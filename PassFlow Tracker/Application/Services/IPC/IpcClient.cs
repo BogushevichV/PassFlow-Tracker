@@ -1,4 +1,5 @@
-﻿using PassFlow_Tracker.Domain.Models.Communication;
+﻿using PassFlow_Tracker.Configuration;
+using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
@@ -16,10 +17,14 @@ namespace PassFlow_Tracker.Application.Services.IPC
         private readonly string _host;
         private readonly int _port;
 
-        public IpcClient(string host = "127.0.0.1", int port = 5000)
+        public IpcClient() : this(AppConfig.Ipc.Host, AppConfig.Ipc.Port) { }
+
+        public IpcClient(string host, int port)
         {
             _host = host;
             _port = port;
+
+            AppLogger.Info($"[IpcClient] Инициализирован для {host}:{port}");
         }
 
         public async Task<IpcResponse> SendAsync(IpcRequest request)

@@ -1,4 +1,5 @@
-﻿using PassFlow_Tracker.Domain.Models.Communication;
+﻿using PassFlow_Tracker.Configuration;
+using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
@@ -22,16 +23,24 @@ namespace PassFlow_Tracker.Application.Services.IPC
 
         private readonly CancellationTokenSource _cts = new();
 
-        public IpcHost(CommandDispatcher dispatcher, int port = 5000)
+        public IpcHost(CommandDispatcher dispatcher)
+            : this(dispatcher, AppConfig.Ipc.Host, AppConfig.Ipc.Port) { }
+
+
+        public IpcHost(CommandDispatcher dispatcher, string host, int port)
         {
             _dispatcher = dispatcher;
-            _listener = new TcpListener(IPAddress.Loopback, port);
+            _listener = new TcpListener(IPAddress.Parse(host), port);
+
+            AppLogger.Info($"[IpcHost] Инициализирован на {host}:{port}");
         }
 
         public async Task StartAsync()
         {
             _listener.Start();
-            AppLogger.Info($"[{LogContext}] Хост запущен на порту {((IPEndPoint)_listener.LocalEndpoint).Port}");
+
+            var endpoint = (IPEndPoint)_listener.LocalEndpoint;
+            AppLogger.Info($"[{LogContext}] Хост запущен на {endpoint.Address}:{endpoint.Port}");
 
             while (!_cts.Token.IsCancellationRequested)
             {
