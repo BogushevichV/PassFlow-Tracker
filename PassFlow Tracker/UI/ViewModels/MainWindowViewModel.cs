@@ -4,11 +4,19 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DocumentFormat.OpenXml.Drawing.Charts;
 using PassFlow_Tracker.Application.Services;
+using PassFlow_Tracker.Application.Services.IPC;
+using PassFlow_Tracker.Domain.Models;
+using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Database;
+using PassFlow_Tracker.Infrastructure.Logging;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
+
+using JsonSerializerDefaults = PassFlow_Tracker.Infrastructure.Serialization.JsonSerializerDefaults;
 
 namespace PassFlow_Tracker.UI.ViewModels
 {
@@ -16,8 +24,7 @@ namespace PassFlow_Tracker.UI.ViewModels
     {
         public Window? MainWindow { get; set; }
 
-        private readonly JsonImportService _jsonService;
-        private readonly TransportAnalytics _analytics;
+        private readonly IpcClient _ipc = new();
 
         public ObservableCollection<TripStopRowViewModel> TripStops { get; } = new();
         public ObservableCollection<RoundRowViewModel> Rounds { get; } = new();
@@ -34,17 +41,16 @@ namespace PassFlow_Tracker.UI.ViewModels
             OnPropertyChanged(nameof(ShowTrips));
         }
 
-        public MainWindowViewModel()
-        {
-            var db = new DbConnectionFactory();
+        private const string LogContext = "MainWindowViewModel";
 
-            _jsonService = new JsonImportService(db);
-            _analytics = new TransportAnalytics(db);
-        }
+        public MainWindowViewModel() { }
 
         [RelayCommand]
         public async Task InitializeAsync()
         {
+            AppLogger.Info($"[{LogContext}] Инициализация главного окна");
+            await SetActiveTab("trip_stops");
+            AppLogger.Info($"[{LogContext}] Главное окно инициализировано");
             await LoadTripStops();
         }
 
@@ -159,6 +165,47 @@ namespace PassFlow_Tracker.UI.ViewModels
         [RelayCommand]
         private async Task SetActiveTab(string tab)
         {
+            AppLogger.Info($"[{LogContext}] Переключение на вкладку: {tab}");
+
+            ActiveTab = tab;
+
+            try
+            {
+                switch (tab)
+                {
+                    case "trip_stops":
+                        await RunTopStops();
+                        Status = "Загружены остановки";
+                        break;
+                    case "trips":
+                        // TODO: Реализовать загрузку рейсов
+                        TripStops.Clear();
+                        Status = "Рейсы (в разработке)";
+                        break;
+                    case "rounds":
+                        // TODO: Реализовать загрузку кругов
+                        TripStops.Clear();
+                        Status = "Круги (в разработке)";
+                        break;
+                    case "daily_records":
+                        // TODO: Реализовать загрузку дней
+                        TripStops.Clear();
+                        Status = "Дни (в разработке)";
+                        break;
+                    case "all_data":
+                        // TODO: Реализовать загрузку всех данных
+                        TripStops.Clear();
+                        Status = "Все данные (в разработке)";
+                        break;
+                }
+                AppLogger.Info($"[{LogContext}] Вкладка '{tab}' загружена успешно");
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки вкладки '{tab}'", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
             ActiveTab = tab;
 
             switch (tab)
@@ -287,7 +334,6 @@ namespace PassFlow_Tracker.UI.ViewModels
             else CalendarYear += 12;
         }
 
-
         [RelayCommand]
         private async Task LoadJson()
         {
@@ -308,74 +354,157 @@ namespace PassFlow_Tracker.UI.ViewModels
                 });
 
             var file = files.FirstOrDefault();
-            if (file == null) return;
+            if (file == null)
+            {
+                AppLogger.Warning($"[{LogContext}] Импорт JSON: файл не выбран");
+                return;
+            }
 
+            AppLogger.Info($"[{LogContext}] Импорт JSON: {file.Path.LocalPath}");
             Status = "Импорт...";
 
-            try
+            var response = await _ipc.SendAsync(new IpcRequest
             {
-                await _jsonService.ImportAsync(file.Path.LocalPath);
-                Status = "JSON загружен";
-            }
-            catch (Exception ex)
+                Command = "import_json",
+                Parameters = new()
+                {
+                    ["path"] = file.Path.LocalPath,
+                }
+            });
+
+            if (response.Success)
             {
-                Status = ex.Message;
+                AppLogger.Info($"[{LogContext}] JSON успешно импортирован");
             }
+            else
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка импорта JSON: {response.Message}");
+            }
+
+            Status = response.Message;
         }
 
 
         [RelayCommand]
         private async Task RunPeakHours()
         {
-            var data = await _analytics.GetPeakHoursAsync();
-
-            TripStops.Clear();
-            foreach (var d in data)
+            AppLogger.Info($"[{LogContext}] Запрос: часы пик");
+            try
             {
-                TripStops.Add(new TripStopRowViewModel
+                var response = await _ipc.SendAsync(new IpcRequest
                 {
-                    StopName = $"Час {d.Hour}",
-                    Transported = (int)d.Flow
+                    Command = "peak_hours"
                 });
-            }
 
-            Status = "Часы пик";
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<PeakHour>>(json, JsonSerializerDefaults.SafeOptions);
+
+                    TripStops.Clear();
+                    foreach (var d in data)
+                    {
+                        TripStops.Add(new TripStopRowViewModel
+                        {
+                            StopName = $"Час {d.Hour}",
+                            Transported = (int)d.Flow
+                        });
+                    }
+
+                    Status = "Часы пик";
+                    AppLogger.Info($"[{LogContext}] Часы пик загружены: {data.Count} записей");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки часов пик", ex);
+                Status = "Ошибка загрузки";
+            }
         }
 
         [RelayCommand]
         private async Task RunTopStops()
         {
-            var data = await _analytics.GetTopStopsAsync(TopN);
+            AppLogger.Info($"[{LogContext}] Запрос: топ-{TopN} остановок");
 
-            TripStops.Clear();
-            foreach (var d in data)
+            try
             {
-                TripStops.Add(new TripStopRowViewModel
+                var response = await _ipc.SendAsync(new IpcRequest
                 {
-                    StopName = d.Name,
-                    Transported = (int)d.Load
+                    Command = "top_stops",
+                    Parameters = new()
+                    {
+                        ["limit"] = TopN.ToString()
+                    }
                 });
-            }
 
-            Status = $"Топ {TopN}";
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<StopLoad>>(json, JsonSerializerDefaults.SafeOptions);
+
+                    TripStops.Clear();
+
+                    foreach (var d in data)
+                    {
+                        TripStops.Add(new TripStopRowViewModel
+                        {
+                            StopName = d.Name,
+                            Transported = (int)d.Load
+                        });
+                    }
+                    Status = $"Топ-{TopN} остановок";
+                    AppLogger.Info($"[{LogContext}] Топ-{TopN} остановок загружен: {data.Count} записей");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки топ остановок", ex);
+                Status = "Ошибка загрузки";
+            }
         }
 
         [RelayCommand]
         private async Task RunLowActivity()
         {
-            var data = await _analytics.GetLowActivityTripsAsync(Threshold);
+            AppLogger.Info($"[{LogContext}] Запрос: низкая активность (порог={Threshold})");
 
-            TripStops.Clear();
-            foreach (var d in data)
+            try
             {
-                TripStops.Add(new TripStopRowViewModel
+                var response = await _ipc.SendAsync(new IpcRequest
                 {
-                    StopName = $"Рейс {d.Id}",
-                    Transported = d.Count
+                    Command = "low_activity",
+                    Parameters = new()
+                    {
+                        ["threshold"] = Threshold.ToString()
+                    }
                 });
-            }
 
-            Status = "Низкая активность";
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<LowTrip>>(json, JsonSerializerDefaults.SafeOptions);
+
+                    TripStops.Clear();
+                    foreach (var d in data)
+                    {
+                        TripStops.Add(new TripStopRowViewModel
+                        {
+                            StopName = $"Рейс {d.Id}",
+                            Transported = d.Count
+                        });
+                    }
+
+                    Status = "Низкая активность";
+                    AppLogger.Info($"[{LogContext}] Низкая активность загружена: {data.Count} записей");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки низкой активности", ex);
+                Status = "Ошибка загрузки";
+            }
         }
+
     }
 }

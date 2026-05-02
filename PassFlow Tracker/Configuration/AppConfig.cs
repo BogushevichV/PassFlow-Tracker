@@ -25,6 +25,8 @@ namespace PassFlow_Tracker.Configuration
 
         public static DockerSettings Docker => Config.GetSection("Docker").Get<DockerSettings>()!;
 
+        public static IpcSettings Ipc => Config.GetSection("Ipc").Get<IpcSettings>()!;
+        
         public static string MainConnection => Config.GetConnectionString("MainConnection")!;
 
         public static string AdminConnection => Config.GetConnectionString("AdminConnection")!;

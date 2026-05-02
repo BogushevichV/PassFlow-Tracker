@@ -4,6 +4,7 @@ using Npgsql;
 using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Infrastructure.Database;
 using PassFlow_Tracker.Infrastructure.Docker;
+using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +12,8 @@ using System.Threading.Tasks;
 
 public class DatabaseInitializer
 {
+    private const string LogContext = "DatabaseInitializer";
+
     private readonly DbConnectionFactory _db;
 
     public DatabaseInitializer(DbConnectionFactory db)
@@ -20,22 +23,32 @@ public class DatabaseInitializer
 
     public async Task StartAndInitializeAsync()
     {
-        var docker = new DockerPostgresManager();
+        AppLogger.Info($"[{LogContext}] Начало инициализации БД");
 
-        await docker.StartAsync();
+        try
+        {
+            var docker = new DockerPostgresManager();
 
-        // 1. Проверяем существует ли БД
-        await EnsureDatabaseExistsAsync();
+            await docker.StartAsync();
 
-        // 2. Инициализируем таблицы
-        await CreateTablesAsync();
+            // 1. Проверяем существует ли БД
+            await EnsureDatabaseExistsAsync();
 
-        Console.WriteLine("\nИнициализация успешно завершена!\n");
+            // 2. Инициализируем таблицы
+            await CreateTablesAsync();
+
+            AppLogger.Info($"[{LogContext}] Инициализация БД завершена успешно");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[{LogContext}] Ошибка инициализации БД", ex);
+            throw;
+        }
     }
 
     private async Task EnsureDatabaseExistsAsync()
     {
-        Console.WriteLine("\n\t5. Проверка наличия БД");
+        AppLogger.Info($"[{LogContext}] Проверка наличия БД");
 
         using var connection = _db.CreateAdminConnection();
         await connection.OpenAsync();
@@ -47,7 +60,7 @@ public class DatabaseInitializer
 
         if (exists == null)
         {
-            Console.WriteLine("База данных passflowtrackerdb не найдена. Создаём...");
+            AppLogger.Info($"[{LogContext}] БД не найдена, создаём...");
 
             using var createCmd = new NpgsqlCommand(
                 "CREATE DATABASE passflowtrackerdb",
@@ -55,16 +68,18 @@ public class DatabaseInitializer
 
             await createCmd.ExecuteNonQueryAsync();
 
-            Console.WriteLine("База данных создана.\n");
+            AppLogger.Info($"[{LogContext}] БД создана");
         }
         else
         {
-            Console.WriteLine("База данных уже существует.\n");
+            AppLogger.Info($"[{LogContext}] БД уже существует");
         }
     }
 
     private async Task CreateTablesAsync()
     {
+        AppLogger.Info($"[{LogContext}] Создание таблиц...");
+
         string sql = @"
             CREATE TABLE IF NOT EXISTS daily_records (
                 id SERIAL PRIMARY KEY,
@@ -122,7 +137,8 @@ public class DatabaseInitializer
         await connection.OpenAsync();
         using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
-        Console.WriteLine("Таблицы и индексы созданы.");
+
+        AppLogger.Info($"[{LogContext}] Таблицы созданы успешно");
     }
 
     public async Task PrintAllTablesAsync()
