@@ -20,6 +20,19 @@ namespace PassFlow_Tracker.UI.ViewModels
         private readonly TransportAnalytics _analytics;
 
         public ObservableCollection<TripStopRowViewModel> TripStops { get; } = new();
+        public ObservableCollection<RoundRowViewModel> Rounds { get; } = new();
+        public ObservableCollection<TripRowViewModel> Trips { get; } = new();
+
+        public bool ShowTripStops => ActiveTab == "trip_stops";
+        public bool ShowRounds    => ActiveTab == "rounds";
+        public bool ShowTrips     => ActiveTab == "trips";
+
+        partial void OnActiveTabChanged(string value)
+        {
+            OnPropertyChanged(nameof(ShowTripStops));
+            OnPropertyChanged(nameof(ShowRounds));
+            OnPropertyChanged(nameof(ShowTrips));
+        }
 
         public MainWindowViewModel()
         {
@@ -154,10 +167,10 @@ namespace PassFlow_Tracker.UI.ViewModels
                     await LoadTripStops();
                     break;
                 case "trips":
-                    Status = "Загрузка рейсов...";
+                    await LoadTrips();
                     break;
                 case "rounds":
-                    Status = "Загрузка кругов...";
+                    await LoadRounds();
                     break;
                 case "daily_records":
                     Status = "Загрузка дней...";
@@ -192,6 +205,54 @@ namespace PassFlow_Tracker.UI.ViewModels
             {
                 Status = $"Ошибка: {ex.Message}";
             }
+        }
+
+        private async Task LoadRounds()
+        {
+            Status = "Загрузка кругов...";
+            try
+            {
+                var data = await _analytics.GetRoundsAsync();
+                Rounds.Clear();
+                foreach (var d in data)
+                    Rounds.Add(new RoundRowViewModel
+                    {
+                        UnitName    = d.UnitName,
+                        StartPoint  = d.StartPoint,
+                        EndPoint    = d.EndPoint,
+                        TimeFrom    = d.TimeFrom,
+                        TimeTo      = d.TimeTo,
+                        Entered     = d.Entered,
+                        Exited      = d.Exited,
+                        Transported = d.Transported
+                    });
+                Status = $"Круги: {data.Count}";
+            }
+            catch (Exception ex) { Status = $"Ошибка: {ex.Message}"; }
+        }
+
+        private async Task LoadTrips()
+        {
+            Status = "Загрузка рейсов...";
+            try
+            {
+                var data = await _analytics.GetTripsAsync();
+                Trips.Clear();
+                foreach (var d in data)
+                    Trips.Add(new TripRowViewModel
+                    {
+                        UnitName    = d.UnitName,
+                        StartPoint  = d.StartPoint,
+                        EndPoint    = d.EndPoint,
+                        TimeFrom    = d.TimeFrom,
+                        TimeTo      = d.TimeTo,
+                        Entered     = d.Entered,
+                        Exited      = d.Exited,
+                        Transported = d.Transported
+                    });
+                Status = $"Рейсы: {data.Count}";
+            }
+            catch (Exception ex) { Status = $"Ошибка: {ex.Message}"; }
         }
 
         [RelayCommand]

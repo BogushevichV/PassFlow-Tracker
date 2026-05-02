@@ -16,4 +16,24 @@ namespace PassFlow_Tracker.Domain.Models
         int Entered,
         int Exited,
         int Transported);
+
+    public record RoundRow(
+        string UnitName,
+        string StartPoint,
+        string EndPoint,
+        string TimeFrom,
+        string TimeTo,
+        int Entered,
+        int Exited,
+        int Transported);
+
+    public record TripRow(
+        string UnitName,
+        string StartPoint,
+        string EndPoint,
+        string TimeFrom,
+        string TimeTo,
+        int Entered,
+        int Exited,
+        int Transported);
 }

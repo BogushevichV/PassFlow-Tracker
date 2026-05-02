@@ -130,6 +130,76 @@ namespace PassFlow_Tracker.Application.Services
 
             return data;
         }
+
+        // 5. Круги с номером автобуса
+        public async Task<List<RoundRow>> GetRoundsAsync()
+        {
+            var data = new List<RoundRow>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string sql = @"
+                SELECT dr.unit_name,
+                       r.start_point, r.end_point,
+                       r.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
+                       r.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
+                       r.entered, r.exited, r.transported
+                FROM rounds r
+                JOIN daily_records dr ON r.daily_record_id = dr.id
+                ORDER BY r.time_from";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new RoundRow(
+                    rdr["unit_name"].ToString() ?? "",
+                    rdr["start_point"].ToString() ?? "",
+                    rdr["end_point"].ToString() ?? "",
+                    ((DateTime)rdr["tf"]).ToString("HH:mm"),
+                    ((DateTime)rdr["tt"]).ToString("HH:mm"),
+                    Convert.ToInt32(rdr["entered"]),
+                    Convert.ToInt32(rdr["exited"]),
+                    Convert.ToInt32(rdr["transported"])
+                ));
+
+            return data;
+        }
+
+        // 6. Рейсы с номером автобуса
+        public async Task<List<TripRow>> GetTripsAsync()
+        {
+            var data = new List<TripRow>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string sql = @"
+                SELECT dr.unit_name,
+                       t.start_point, t.end_point,
+                       t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
+                       t.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
+                       t.entered, t.exited, t.transported
+                FROM trips t
+                JOIN rounds r  ON t.round_id = r.id
+                JOIN daily_records dr ON r.daily_record_id = dr.id
+                ORDER BY t.time_from";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new TripRow(
+                    rdr["unit_name"].ToString() ?? "",
+                    rdr["start_point"].ToString() ?? "",
+                    rdr["end_point"].ToString() ?? "",
+                    ((DateTime)rdr["tf"]).ToString("HH:mm"),
+                    ((DateTime)rdr["tt"]).ToString("HH:mm"),
+                    Convert.ToInt32(rdr["entered"]),
+                    Convert.ToInt32(rdr["exited"]),
+                    Convert.ToInt32(rdr["transported"])
+                ));
+
+            return data;
+        }
+
         public async Task PrintReportAsync()
         {
             Console.WriteLine("=== ОТЧЕТ ПО ПАССАЖИРОПОТОКУ ===");
