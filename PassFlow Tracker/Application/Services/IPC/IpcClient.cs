@@ -9,6 +9,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+using JsonSerializerDefaults = PassFlow_Tracker.Infrastructure.Serialization.JsonSerializerDefaults;
+
 namespace PassFlow_Tracker.Application.Services.IPC
 {
     public class IpcClient
@@ -29,7 +31,9 @@ namespace PassFlow_Tracker.Application.Services.IPC
 
         public async Task<IpcResponse> SendAsync(IpcRequest request)
         {
-            var requestJson = JsonSerializer.Serialize(request);
+            request.AuthToken = AppConfig.Ipc.AuthToken;
+
+            var requestJson = JsonSerializer.Serialize(request, JsonSerializerDefaults.OutputOptions);
             AppLogger.Info($"[{LogContext}] Отправка запроса: {request.Command}");
 
             try
@@ -49,7 +53,7 @@ namespace PassFlow_Tracker.Application.Services.IPC
                 var responseJson = Encoding.UTF8.GetString(buffer, 0, read);
                 AppLogger.Info($"[{LogContext}] Получен ответ: {(responseJson.Length > 100 ? responseJson[..100] + "..." : responseJson)}");
 
-                var response = JsonSerializer.Deserialize<IpcResponse>(responseJson)!;
+                var response = JsonSerializer.Deserialize<IpcResponse>(responseJson, JsonSerializerDefaults.SafeOptions)!;
 
                 if (!response.Success)
                 {

@@ -11,6 +11,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+using JsonSerializerDefaults = PassFlow_Tracker.Infrastructure.Serialization.JsonSerializerDefaults;
+
 namespace PassFlow_Tracker.Application.Services
 {
     public class JsonImportService
@@ -41,8 +43,7 @@ namespace PassFlow_Tracker.Application.Services
                 string json = await File.ReadAllTextAsync(filePath);
                 AppLogger.Info($"[{LogContext}] Файл прочитан: {json.Length} байт");
 
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var records = JsonSerializer.Deserialize<List<RootRecord>>(json, options);
+                var records = JsonSerializer.Deserialize<List<RootRecord>>(json, JsonSerializerDefaults.FileImportOptions);
 
                 if (records == null)
                 {

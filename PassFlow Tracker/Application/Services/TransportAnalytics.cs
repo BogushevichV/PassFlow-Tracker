@@ -72,14 +72,16 @@ namespace PassFlow_Tracker.Application.Services
 
                 // Используем прямое подставление лимита, чтобы избежать проблем с параметрами,
                 // которые вы видите в DBeaver. Значение приходит из кода (int), риск инъекции отсутствует.
-                string sql = $@"
-                SELECT stop_name, SUM(entered + exited) as total 
-                FROM trip_stops 
-                GROUP BY stop_name 
-                ORDER BY total DESC 
-                LIMIT {limit}";
+                const string sql = @"
+                    SELECT stop_name, SUM(entered + exited) as total 
+                    FROM trip_stops 
+                    GROUP BY stop_name 
+                    ORDER BY total DESC 
+                    LIMIT @limit";
 
                 using var cmd = new NpgsqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@limit", limit);
+
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new StopLoad(rdr["stop_name"].ToString(), Convert.ToInt64(rdr["total"])));
@@ -110,7 +112,7 @@ namespace PassFlow_Tracker.Application.Services
                 // Аналогично убираем параметр и подставляем порог напрямую.
                 // Дополнительно приводим время к часовому поясу Europe/Moscow,
                 // чтобы в .NET оно отображалось так же, как в БД.
-                string sql = $@"
+                string sql = @"
                 SELECT t.id,
                        t.time_from AT TIME ZONE 'Europe/Moscow' AS time_from_local,
                        t.transported,
@@ -118,10 +120,12 @@ namespace PassFlow_Tracker.Application.Services
                 FROM trips t
                 JOIN rounds r ON t.round_id = r.id
                 JOIN daily_records dr ON r.daily_record_id = dr.id
-                WHERE t.transported < {threshold}
+                WHERE t.transported < @threshold
                 ORDER BY t.time_from DESC";
 
                 using var cmd = new NpgsqlCommand(sql, conn);
+
+                cmd.Parameters.AddWithValue("@threshold", threshold);
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new LowTrip(

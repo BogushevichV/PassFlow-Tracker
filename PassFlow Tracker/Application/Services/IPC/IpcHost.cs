@@ -11,6 +11,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+using JsonSerializerDefaults = PassFlow_Tracker.Infrastructure.Serialization.JsonSerializerDefaults;
+
 
 namespace PassFlow_Tracker.Application.Services.IPC
 {
@@ -20,6 +22,9 @@ namespace PassFlow_Tracker.Application.Services.IPC
 
         private readonly TcpListener _listener;
         private readonly CommandDispatcher _dispatcher;
+
+        private readonly SemaphoreSlim _connectionLimit;
+        private const int MaxConcurrentConnections = 10;
 
         private readonly CancellationTokenSource _cts = new();
 
@@ -31,6 +36,8 @@ namespace PassFlow_Tracker.Application.Services.IPC
         {
             _dispatcher = dispatcher;
             _listener = new TcpListener(IPAddress.Parse(host), port);
+
+            _connectionLimit = new SemaphoreSlim(MaxConcurrentConnections);
 
             AppLogger.Info($"[IpcHost] Инициализирован на {host}:{port}");
         }
@@ -48,7 +55,25 @@ namespace PassFlow_Tracker.Application.Services.IPC
                 {
                     var client = await _listener.AcceptTcpClientAsync();
                     AppLogger.Info($"[{LogContext}] Новое подключение: {client.Client.RemoteEndPoint}");
-                    _ = Task.Run(() => HandleClientAsync(client));
+
+                    if (!await _connectionLimit.WaitAsync(TimeSpan.FromSeconds(2)))
+                    {
+                        AppLogger.Warning($"[{LogContext}] Превышен лимит подключений");
+                        client.Dispose();
+                        continue;
+                    }
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await HandleClientAsync(client);
+                        }
+                        finally
+                        {
+                            _connectionLimit.Release(); // ← освобождаем слот
+                        }
+                    });
                 }
                 catch (ObjectDisposedException)
                 {
@@ -76,11 +101,20 @@ namespace PassFlow_Tracker.Application.Services.IPC
                 var json = Encoding.UTF8.GetString(buffer, 0, bytes);
                 AppLogger.Info($"[{LogContext}] Получен запрос от {clientEndpoint}: {json}");
 
-                var request = JsonSerializer.Deserialize<IpcRequest>(json);
+                var request = JsonSerializer.Deserialize<IpcRequest>(json, JsonSerializerDefaults.SafeOptions);
+
+                if (!ValidateToken(request?.AuthToken))
+                {
+                    AppLogger.Warning($"[IpcHost] Неверный токен от {clientEndpoint}");
+                    var errorResponse = new IpcResponse { Success = false, Message = "Unauthorized" };
+                    var errorBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(errorResponse));
+                    await stream.WriteAsync(errorBytes);
+                    return;
+                }
 
                 var response = await _dispatcher.HandleAsync(request);
 
-                var responseJson = JsonSerializer.Serialize(response);
+                var responseJson = JsonSerializer.Serialize(response, JsonSerializerDefaults.OutputOptions);
                 AppLogger.Info($"[{LogContext}] Отправлен ответ для {clientEndpoint}: {(response.Success ? "успех" : response.Message)}");
 
                 var responseBytes = Encoding.UTF8.GetBytes(responseJson);
@@ -99,6 +133,12 @@ namespace PassFlow_Tracker.Application.Services.IPC
                 client.Dispose();
                 AppLogger.Info($"[{LogContext}] Соединение с {clientEndpoint} закрыто");
             }
+        }
+
+        private static bool ValidateToken(string? token)
+        {
+            // В продакшене — хеш или JWT
+            return token == AppConfig.Ipc.AuthToken;
         }
 
         public void Stop()

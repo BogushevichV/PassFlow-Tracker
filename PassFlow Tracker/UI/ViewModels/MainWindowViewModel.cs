@@ -16,6 +16,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+using JsonSerializerDefaults = PassFlow_Tracker.Infrastructure.Serialization.JsonSerializerDefaults;
+
 namespace PassFlow_Tracker.UI.ViewModels
 {
     public partial class MainWindowViewModel : ObservableObject
@@ -287,8 +289,8 @@ namespace PassFlow_Tracker.UI.ViewModels
 
                 if (response.Success && response.Data != null)
                 {
-                    var json = JsonSerializer.Serialize(response.Data);
-                    var data = JsonSerializer.Deserialize<List<PeakHour>>(json);
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<PeakHour>>(json, JsonSerializerDefaults.SafeOptions);
 
                     TripStops.Clear();
                     foreach (var d in data)
@@ -329,8 +331,8 @@ namespace PassFlow_Tracker.UI.ViewModels
 
                 if (response.Success && response.Data != null)
                 {
-                    var json = JsonSerializer.Serialize(response.Data);
-                    var data = JsonSerializer.Deserialize<List<StopLoad>>(json);
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<StopLoad>>(json, JsonSerializerDefaults.SafeOptions);
 
                     TripStops.Clear();
 
@@ -371,8 +373,8 @@ namespace PassFlow_Tracker.UI.ViewModels
 
                 if (response.Success && response.Data != null)
                 {
-                    var json = JsonSerializer.Serialize(response.Data);
-                    var data = JsonSerializer.Deserialize<List<LowTrip>>(json);
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<LowTrip>>(json, JsonSerializerDefaults.SafeOptions);
 
                     TripStops.Clear();
                     foreach (var d in data)
