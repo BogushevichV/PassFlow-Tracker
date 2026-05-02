@@ -63,6 +63,9 @@
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="FontSize" Value="13"/>
     </Style>
+    <Style Selector="Button.tab PathIcon">
+      <Setter Property="Foreground" Value="#1D4ED8"/>
+    </Style>
     <Style Selector="Button.tab:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="#E2E8F0"/>
     </Style>
@@ -561,7 +564,7 @@
             <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="trip_stops">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
-                          Width="13" Height="13" Foreground="#1D4ED8"/>
+                          Width="13" Height="13"/>
                 <TextBlock Text="Остановки"/>
               </StackPanel>
             </Button>
