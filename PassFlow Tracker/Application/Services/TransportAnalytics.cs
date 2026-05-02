@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml.Drawing;
 using Npgsql;
 using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Domain.Models;
@@ -148,12 +149,17 @@ namespace PassFlow_Tracker.Application.Services
         // 4. Остановки сгруппированные (для вкладки trip_stops)
         public async Task<List<TripStopRow>> GetTripStopsAsync()
         {
-            var data = new List<TripStopRow>();
-            using var conn = _db.CreateConnection();
-            await conn.OpenAsync();
+            AppLogger.Info($"[{LogContext}] Запрос остановок");
+            var startTime = DateTime.Now;
 
-            // entered, exited, transported — суммируем по всем проходам через остановку
-            const string sql = @"
+            try
+            {
+                var data = new List<TripStopRow>();
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                // entered, exited, transported — суммируем по всем проходам через остановку
+                const string sql = @"
                 SELECT stop_number, stop_name,
                        SUM(entered)     AS total_entered,
                        SUM(exited)      AS total_exited,
@@ -163,28 +169,42 @@ namespace PassFlow_Tracker.Application.Services
                 GROUP BY stop_number, stop_name
                 ORDER BY stop_number";
 
-            using var cmd = new NpgsqlCommand(sql, conn);
-            using var rdr = await cmd.ExecuteReaderAsync();
-            while (await rdr.ReadAsync())
-                data.Add(new TripStopRow(
-                    Convert.ToInt32(rdr["stop_number"]),
-                    rdr["stop_name"].ToString() ?? "",
-                    Convert.ToInt32(rdr["total_entered"]),
-                    Convert.ToInt32(rdr["total_exited"]),
-                    Convert.ToInt32(rdr["total_transported"])
-                ));
+                using var cmd = new NpgsqlCommand(sql, conn);
+                using var rdr = await cmd.ExecuteReaderAsync();
+                while (await rdr.ReadAsync())
+                    data.Add(new TripStopRow(
+                        Convert.ToInt32(rdr["stop_number"]),
+                        rdr["stop_name"].ToString() ?? "",
+                        Convert.ToInt32(rdr["total_entered"]),
+                        Convert.ToInt32(rdr["total_exited"]),
+                        Convert.ToInt32(rdr["total_transported"])
+                    ));
 
-            return data;
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Остановки получены за {duration:F0}мс, записей: {data.Count}");
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения остановок", ex);
+                throw;
+            }
         }
 
         // 5. Круги с номером автобуса
         public async Task<List<RoundRow>> GetRoundsAsync()
         {
-            var data = new List<RoundRow>();
-            using var conn = _db.CreateConnection();
-            await conn.OpenAsync();
+            AppLogger.Info($"[{LogContext}] Запрос кругов");
+            var startTime = DateTime.Now;
+            try
+            {
+                var data = new List<RoundRow>();
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
 
-            const string sql = @"
+                const string sql = @"
                 SELECT dr.unit_name,
                        r.start_point, r.end_point,
                        r.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
@@ -194,31 +214,44 @@ namespace PassFlow_Tracker.Application.Services
                 JOIN daily_records dr ON r.daily_record_id = dr.id
                 ORDER BY r.time_from";
 
-            using var cmd = new NpgsqlCommand(sql, conn);
-            using var rdr = await cmd.ExecuteReaderAsync();
-            while (await rdr.ReadAsync())
-                data.Add(new RoundRow(
-                    rdr["unit_name"].ToString() ?? "",
-                    rdr["start_point"].ToString() ?? "",
-                    rdr["end_point"].ToString() ?? "",
-                    ((DateTime)rdr["tf"]).ToString("HH:mm"),
-                    ((DateTime)rdr["tt"]).ToString("HH:mm"),
-                    Convert.ToInt32(rdr["entered"]),
-                    Convert.ToInt32(rdr["exited"]),
-                    Convert.ToInt32(rdr["transported"])
-                ));
+                using var cmd = new NpgsqlCommand(sql, conn);
+                using var rdr = await cmd.ExecuteReaderAsync();
+                while (await rdr.ReadAsync())
+                    data.Add(new RoundRow(
+                        rdr["unit_name"].ToString() ?? "",
+                        rdr["start_point"].ToString() ?? "",
+                        rdr["end_point"].ToString() ?? "",
+                        ((DateTime)rdr["tf"]).ToString("HH:mm"),
+                        ((DateTime)rdr["tt"]).ToString("HH:mm"),
+                        Convert.ToInt32(rdr["entered"]),
+                        Convert.ToInt32(rdr["exited"]),
+                        Convert.ToInt32(rdr["transported"])
+                    ));
 
-            return data;
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Круги получены за {duration:F0}мс, записей: {data.Count}");
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения кругов", ex);
+                throw;
+            }
         }
 
         // 6. Рейсы с номером автобуса
         public async Task<List<TripRow>> GetTripsAsync()
         {
-            var data = new List<TripRow>();
-            using var conn = _db.CreateConnection();
-            await conn.OpenAsync();
+            AppLogger.Info($"[{LogContext}] Запрос рейсов");
+            var startTime = DateTime.Now;
+            try
+            {
+                var data = new List<TripRow>();
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
 
-            const string sql = @"
+                const string sql = @"
                 SELECT dr.unit_name,
                        t.start_point, t.end_point,
                        t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
@@ -229,21 +262,30 @@ namespace PassFlow_Tracker.Application.Services
                 JOIN daily_records dr ON r.daily_record_id = dr.id
                 ORDER BY t.time_from";
 
-            using var cmd = new NpgsqlCommand(sql, conn);
-            using var rdr = await cmd.ExecuteReaderAsync();
-            while (await rdr.ReadAsync())
-                data.Add(new TripRow(
-                    rdr["unit_name"].ToString() ?? "",
-                    rdr["start_point"].ToString() ?? "",
-                    rdr["end_point"].ToString() ?? "",
-                    ((DateTime)rdr["tf"]).ToString("HH:mm"),
-                    ((DateTime)rdr["tt"]).ToString("HH:mm"),
-                    Convert.ToInt32(rdr["entered"]),
-                    Convert.ToInt32(rdr["exited"]),
-                    Convert.ToInt32(rdr["transported"])
-                ));
+                using var cmd = new NpgsqlCommand(sql, conn);
+                using var rdr = await cmd.ExecuteReaderAsync();
+                while (await rdr.ReadAsync())
+                    data.Add(new TripRow(
+                        rdr["unit_name"].ToString() ?? "",
+                        rdr["start_point"].ToString() ?? "",
+                        rdr["end_point"].ToString() ?? "",
+                        ((DateTime)rdr["tf"]).ToString("HH:mm"),
+                        ((DateTime)rdr["tt"]).ToString("HH:mm"),
+                        Convert.ToInt32(rdr["entered"]),
+                        Convert.ToInt32(rdr["exited"]),
+                        Convert.ToInt32(rdr["transported"])
+                    ));
 
-            return data;
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Рейсы получены за {duration:F0}мс, записей: {data.Count}");
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения рейсов", ex);
+                throw;
+            }
         }
 
         public async Task PrintReportAsync()

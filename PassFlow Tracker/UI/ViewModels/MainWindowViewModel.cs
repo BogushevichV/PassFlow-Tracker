@@ -9,6 +9,7 @@ using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Database;
 using PassFlow_Tracker.Infrastructure.Logging;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -49,9 +50,8 @@ namespace PassFlow_Tracker.UI.ViewModels
         public async Task InitializeAsync()
         {
             AppLogger.Info($"[{LogContext}] Инициализация главного окна");
-            await SetActiveTab("trip_stops");
-            AppLogger.Info($"[{LogContext}] Главное окно инициализировано");
             await LoadTripStops();
+            AppLogger.Info($"[{LogContext}] Главное окно инициализировано");
         }
 
         [ObservableProperty]
@@ -174,28 +174,19 @@ namespace PassFlow_Tracker.UI.ViewModels
                 switch (tab)
                 {
                     case "trip_stops":
-                        await RunTopStops();
-                        Status = "Загружены остановки";
+                        await LoadTripStops();
                         break;
                     case "trips":
-                        // TODO: Реализовать загрузку рейсов
-                        TripStops.Clear();
-                        Status = "Рейсы (в разработке)";
+                        await LoadTrips();
                         break;
                     case "rounds":
-                        // TODO: Реализовать загрузку кругов
-                        TripStops.Clear();
-                        Status = "Круги (в разработке)";
+                        await LoadRounds();
                         break;
                     case "daily_records":
-                        // TODO: Реализовать загрузку дней
-                        TripStops.Clear();
-                        Status = "Дни (в разработке)";
+                        Status = "Загрузка дней...";
                         break;
                     case "all_data":
-                        // TODO: Реализовать загрузку всех данных
-                        TripStops.Clear();
-                        Status = "Все данные (в разработке)";
+                        Status = "Загрузка всех данных...";
                         break;
                 }
                 AppLogger.Info($"[{LogContext}] Вкладка '{tab}' загружена успешно");
@@ -206,102 +197,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                 Status = $"Ошибка: {ex.Message}";
             }
         }
-            ActiveTab = tab;
-
-            switch (tab)
-            {
-                case "trip_stops":
-                    await LoadTripStops();
-                    break;
-                case "trips":
-                    await LoadTrips();
-                    break;
-                case "rounds":
-                    await LoadRounds();
-                    break;
-                case "daily_records":
-                    Status = "Загрузка дней...";
-                    break;
-                case "all_data":
-                    Status = "Загрузка всех данных...";
-                    break;
-            }
-        }
-
-        private async Task LoadTripStops()
-        {
-            Status = "Загрузка остановок...";
-            try
-            {
-                var data = await _analytics.GetTripStopsAsync();
-                TripStops.Clear();
-                foreach (var d in data)
-                {
-                    TripStops.Add(new TripStopRowViewModel
-                    {
-                        StopNumber  = d.StopNumber,
-                        StopName    = d.StopName,
-                        Entered     = d.Entered,
-                        Exited      = d.Exited,
-                        Transported = d.Transported
-                    });
-                }
-                Status = $"Остановки: {data.Count}";
-            }
-            catch (Exception ex)
-            {
-                Status = $"Ошибка: {ex.Message}";
-            }
-        }
-
-        private async Task LoadRounds()
-        {
-            Status = "Загрузка кругов...";
-            try
-            {
-                var data = await _analytics.GetRoundsAsync();
-                Rounds.Clear();
-                foreach (var d in data)
-                    Rounds.Add(new RoundRowViewModel
-                    {
-                        UnitName    = d.UnitName,
-                        StartPoint  = d.StartPoint,
-                        EndPoint    = d.EndPoint,
-                        TimeFrom    = d.TimeFrom,
-                        TimeTo      = d.TimeTo,
-                        Entered     = d.Entered,
-                        Exited      = d.Exited,
-                        Transported = d.Transported
-                    });
-                Status = $"Круги: {data.Count}";
-            }
-            catch (Exception ex) { Status = $"Ошибка: {ex.Message}"; }
-        }
-
-        private async Task LoadTrips()
-        {
-            Status = "Загрузка рейсов...";
-            try
-            {
-                var data = await _analytics.GetTripsAsync();
-                Trips.Clear();
-                foreach (var d in data)
-                    Trips.Add(new TripRowViewModel
-                    {
-                        UnitName    = d.UnitName,
-                        StartPoint  = d.StartPoint,
-                        EndPoint    = d.EndPoint,
-                        TimeFrom    = d.TimeFrom,
-                        TimeTo      = d.TimeTo,
-                        Entered     = d.Entered,
-                        Exited      = d.Exited,
-                        Transported = d.Transported
-                    });
-                Status = $"Рейсы: {data.Count}";
-            }
-            catch (Exception ex) { Status = $"Ошибка: {ex.Message}"; }
-        }
-
+        
         [RelayCommand]
         private void CalendarPrev()
         {
@@ -506,5 +402,160 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
+        [RelayCommand]
+        private async Task LoadTripStops()
+        {
+            AppLogger.Info($"[{LogContext}] Загрузка остановок");
+            Status = "Загрузка остановок...";
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "trip_stops"
+                });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
+
+                    TripStops.Clear();
+                    if (data != null)
+                    {
+                        foreach (var d in data)
+                        {
+                            TripStops.Add(new TripStopRowViewModel
+                            {
+                                StopNumber = d.StopNumber,
+                                StopName = d.StopName,
+                                Entered = d.Entered,
+                                Exited = d.Exited,
+                                Transported = d.Transported
+                            });
+                        }
+                    }
+
+                    Status = $"Остановки: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Остановки загружены: {data?.Count ?? 0}");
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
+                    AppLogger.Error($"[{LogContext}] Ошибка загрузки остановок: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Исключение при загрузке остановок", ex);
+            }
+        }
+
+        [RelayCommand]
+        private async Task LoadRounds()
+        {
+            AppLogger.Info($"[{LogContext}] Загрузка кругов");
+            Status = "Загрузка кругов...";
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "rounds"
+                });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
+
+                    Rounds.Clear();
+                    if (data != null)
+                    {
+                        foreach (var d in data)
+                        {
+                            Rounds.Add(new RoundRowViewModel
+                            {
+                                UnitName = d.UnitName,
+                                StartPoint = d.StartPoint,
+                                EndPoint = d.EndPoint,
+                                TimeFrom = d.TimeFrom,
+                                TimeTo = d.TimeTo,
+                                Entered = d.Entered,
+                                Exited = d.Exited,
+                                Transported = d.Transported
+                            });
+                        }
+                    }
+
+                    Status = $"Круги: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Круги загружены: {data?.Count ?? 0}");
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
+                    AppLogger.Error($"[{LogContext}] Ошибка загрузки кругов: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Исключение при загрузке кругов", ex);
+            }
+        }
+
+        [RelayCommand]
+        private async Task LoadTrips()
+        {
+            AppLogger.Info($"[{LogContext}] Загрузка рейсов");
+            Status = "Загрузка рейсов...";
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "trips"
+                });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    var data = JsonSerializer.Deserialize<List<TripRow>>(json);
+
+                    Trips.Clear();
+                    if (data != null)
+                    {
+                        foreach (var d in data)
+                        {
+                            Trips.Add(new TripRowViewModel
+                            {
+                                UnitName = d.UnitName,
+                                StartPoint = d.StartPoint,
+                                EndPoint = d.EndPoint,
+                                TimeFrom = d.TimeFrom,
+                                TimeTo = d.TimeTo,
+                                Entered = d.Entered,
+                                Exited = d.Exited,
+                                Transported = d.Transported
+                            });
+                        }
+                    }
+
+                    Status = $"Рейсы: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Рейсы загружены: {data?.Count ?? 0}");
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
+                    AppLogger.Error($"[{LogContext}] Ошибка загрузки рейсов: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Исключение при загрузке рейсов", ex);
+            }
+        }
     }
 }

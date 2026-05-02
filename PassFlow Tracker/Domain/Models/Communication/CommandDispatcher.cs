@@ -39,6 +39,9 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                     "peak_hours" => await GetPeakHours(),
                     "top_stops" => await GetTopStops(request),
                     "low_activity" => await GetLowTrips(request),
+                    "trip_stops" => await GetTripStops(),
+                    "rounds" => await GetRounds(),
+                    "trips" => await GetTrips(),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
 
@@ -102,6 +105,32 @@ namespace PassFlow_Tracker.Domain.Models.Communication
 
             var data = await _analytics.GetLowActivityTripsAsync(threshold);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} рейсов с низкой активностью");
+
+            return new IpcResponse { Success = true, Data = data };
+        }
+        private async Task<IpcResponse> GetTripStops()
+        {
+            AppLogger.Info($"[{LogContext}] Получение списка остановок");
+            var data = await _analytics.GetTripStopsAsync();
+            AppLogger.Info($"[{LogContext}] Найдено {data.Count} остановок");
+
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRounds()
+        {
+            AppLogger.Info($"[{LogContext}] Получение кругов");
+            var data = await _analytics.GetRoundsAsync();
+            AppLogger.Info($"[{LogContext}] Найдено {data.Count} кругов");
+
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetTrips()
+        {
+            AppLogger.Info($"[{LogContext}] Получение рейсов");
+            var data = await _analytics.GetTripsAsync();
+            AppLogger.Info($"[{LogContext}] Найдено {data.Count} рейсов");
 
             return new IpcResponse { Success = true, Data = data };
         }
