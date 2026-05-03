@@ -17,6 +17,13 @@ namespace PassFlow_Tracker.Domain.Models
         int Exited,
         int Transported);
 
+    public record DailyRecordRow(
+        string UnitName,
+        string RecordDate,
+        int Entered,
+        int Exited,
+        int Transported);
+
     public record RoundRow(
         string UnitName,
         string StartPoint,

@@ -193,7 +193,34 @@ namespace PassFlow_Tracker.Application.Services
             }
         }
 
-        // 5. Круги с номером автобуса
+        // 5. Дни (daily_records)
+        public async Task<List<DailyRecordRow>> GetDailyRecordsAsync()
+        {
+            var data = new List<DailyRecordRow>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string sql = @"
+                SELECT unit_name, record_date,
+                       entered, exited, transported
+                FROM daily_records
+                ORDER BY record_date DESC";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new DailyRecordRow(
+                    rdr["unit_name"].ToString() ?? "",
+                    ((DateOnly)rdr["record_date"]).ToString("dd.MM.yyyy"),
+                    Convert.ToInt32(rdr["entered"]),
+                    Convert.ToInt32(rdr["exited"]),
+                    Convert.ToInt32(rdr["transported"])
+                ));
+
+            return data;
+        }
+
+        // 6. Круги с номером автобуса
         public async Task<List<RoundRow>> GetRoundsAsync()
         {
             AppLogger.Info($"[{LogContext}] Запрос кругов");

@@ -582,6 +582,21 @@
           <!-- TABLE VIEW: единый DataGrid, ItemsSource переключается по вкладке -->
           <Panel Grid.Row="0" IsVisible="{Binding IsTableView}">
 
+            <!-- Дни -->
+            <DataGrid ItemsSource="{Binding DailyRecords}"
+                      IsVisible="{Binding ShowDailyRecords}"
+                      CanUserReorderColumns="True" CanUserResizeColumns="True" CanUserSortColumns="True"
+                      IsReadOnly="False" AutoGenerateColumns="False" HeadersVisibility="Column"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Автобус"    Binding="{ReflectionBinding UnitName}"    Width="*"/>
+                <DataGridTextColumn Header="Дата"       Binding="{ReflectionBinding RecordDate}"  Width="*"/>
+                <DataGridTextColumn Header="Вошло"      Binding="{ReflectionBinding Entered}"     Width="*"/>
+                <DataGridTextColumn Header="Вышло"      Binding="{ReflectionBinding Exited}"      Width="*"/>
+                <DataGridTextColumn Header="Перевезено" Binding="{ReflectionBinding Transported}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
             <!-- Остановки -->
             <DataGrid ItemsSource="{Binding TripStops}"
                       IsVisible="{Binding ShowTripStops}"

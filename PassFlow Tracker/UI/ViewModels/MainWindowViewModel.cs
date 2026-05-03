@@ -30,16 +30,19 @@ namespace PassFlow_Tracker.UI.ViewModels
         public ObservableCollection<TripStopRowViewModel> TripStops { get; } = new();
         public ObservableCollection<RoundRowViewModel> Rounds { get; } = new();
         public ObservableCollection<TripRowViewModel> Trips { get; } = new();
+        public ObservableCollection<DailyRecordRowViewModel> DailyRecords { get; } = new();
 
-        public bool ShowTripStops => ActiveTab == "trip_stops";
-        public bool ShowRounds    => ActiveTab == "rounds";
-        public bool ShowTrips     => ActiveTab == "trips";
+        public bool ShowTripStops    => ActiveTab == "trip_stops";
+        public bool ShowRounds       => ActiveTab == "rounds";
+        public bool ShowTrips        => ActiveTab == "trips";
+        public bool ShowDailyRecords => ActiveTab == "daily_records";
 
         partial void OnActiveTabChanged(string value)
         {
             OnPropertyChanged(nameof(ShowTripStops));
             OnPropertyChanged(nameof(ShowRounds));
             OnPropertyChanged(nameof(ShowTrips));
+            OnPropertyChanged(nameof(ShowDailyRecords));
         }
 
         private const string LogContext = "MainWindowViewModel";
@@ -183,7 +186,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadRounds();
                         break;
                     case "daily_records":
-                        Status = "Загрузка дней...";
+                        await LoadDailyRecords();
                         break;
                     case "all_data":
                         Status = "Загрузка всех данных...";
@@ -452,9 +455,48 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
-        [RelayCommand]
-        private async Task LoadRounds()
+        private async Task LoadDailyRecords()
         {
+            AppLogger.Info($"[{LogContext}] Загрузка дней");
+            Status = "Загрузка дней...";
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest { Command = "daily_records" });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json, JsonSerializerDefaults.SafeOptions);
+
+                    DailyRecords.Clear();
+                    if (data != null)
+                        foreach (var d in data)
+                            DailyRecords.Add(new DailyRecordRowViewModel
+                            {
+                                UnitName    = d.UnitName,
+                                RecordDate  = d.RecordDate,
+                                Entered     = d.Entered,
+                                Exited      = d.Exited,
+                                Transported = d.Transported
+                            });
+
+                    Status = $"Дни: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Загружено дней: {data?.Count ?? 0}");
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
+                    AppLogger.Error($"[{LogContext}] Ошибка загрузки дней: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Исключение при загрузке дней", ex);
+            }
+        }
+
+        private async Task LoadRounds()        {
             AppLogger.Info($"[{LogContext}] Загрузка кругов");
             Status = "Загрузка кругов...";
 
