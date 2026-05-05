@@ -1,4 +1,5 @@
 using DocumentFormat.OpenXml.Drawing;
+using DocumentFormat.OpenXml.Office2010.Excel;
 using Npgsql;
 using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Domain.Models;
@@ -148,7 +149,7 @@ namespace PassFlow_Tracker.Application.Services
         }
 
         // 4. Остановки сгруппированные (для вкладки trip_stops)
-        public async Task<List<TripStopRow>> GetTripStopsAsync()
+        public async Task<List<TripStopRow>> GetTripStopsAsync(List<int>? dailyRecordIds = null)
         {
             AppLogger.Info($"[{LogContext}] Запрос остановок");
             var startTime = DateTime.Now;
@@ -160,17 +161,30 @@ namespace PassFlow_Tracker.Application.Services
                 await conn.OpenAsync();
 
                 // entered, exited, transported — суммируем по всем проходам через остановку
-                const string sql = @"
-                SELECT stop_number, stop_name,
-                       SUM(entered)     AS total_entered,
-                       SUM(exited)      AS total_exited,
-                       SUM(transported) AS total_transported
-                FROM trip_stops
-                WHERE is_duplicate = FALSE
-                GROUP BY stop_number, stop_name
-                ORDER BY stop_number";
+                string sql = @"
+                SELECT ts.stop_number, ts.stop_name,
+                       SUM(ts.entered)     AS total_entered,
+                       SUM(ts.exited)      AS total_exited,
+                       SUM(ts.transported) AS total_transported
+                FROM trip_stops ts
+                JOIN trips t ON ts.trip_id = t.id
+                JOIN rounds r ON t.round_id = r.id
+                WHERE ts.is_duplicate = FALSE";
+
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
+                {
+                    sql += " AND r.daily_record_id = ANY(@ids)";
+                }
+
+                sql += " GROUP BY ts.stop_number, ts.stop_name ORDER BY ts.stop_number";
 
                 using var cmd = new NpgsqlCommand(sql, conn);
+
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
+                {
+                    cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
+                }
+
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new TripStopRow(
@@ -195,19 +209,29 @@ namespace PassFlow_Tracker.Application.Services
         }
 
         // 5. Дни (daily_records)
-        public async Task<List<DailyRecordRow>> GetDailyRecordsAsync()
+        public async Task<List<DailyRecordRow>> GetDailyRecordsAsync(List<int>? ids = null)
         {
             var data = new List<DailyRecordRow>();
             using var conn = _db.CreateConnection();
             await conn.OpenAsync();
 
-            const string sql = @"
-                SELECT unit_name, record_date,
-                       entered, exited, transported
-                FROM daily_records
-                ORDER BY record_date DESC";
+            var sql = @"
+                SELECT id, unit_name, record_date, entered, exited, transported
+                FROM daily_records";
+
+            if (ids != null && ids.Count > 0)
+            {
+                sql += " WHERE id = ANY(@ids)";
+            }
+
+            sql += " ORDER BY record_date DESC";
 
             using var cmd = new NpgsqlCommand(sql, conn);
+
+            if (ids != null && ids.Count > 0)
+            {
+                cmd.Parameters.AddWithValue("@ids", ids.ToArray());
+            }
             using var rdr = await cmd.ExecuteReaderAsync();
             while (await rdr.ReadAsync())
                 data.Add(new DailyRecordRow(
@@ -222,7 +246,7 @@ namespace PassFlow_Tracker.Application.Services
         }
 
         // 6. Круги с номером автобуса
-        public async Task<List<RoundRow>> GetRoundsAsync()
+        public async Task<List<RoundRow>> GetRoundsAsync(List<int>? dailyRecordIds = null)
         {
             AppLogger.Info($"[{LogContext}] Запрос кругов");
             var startTime = DateTime.Now;
@@ -232,17 +256,28 @@ namespace PassFlow_Tracker.Application.Services
                 using var conn = _db.CreateConnection();
                 await conn.OpenAsync();
 
-                const string sql = @"
-                SELECT dr.unit_name,
-                       r.start_point, r.end_point,
-                       r.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
-                       r.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
-                       r.entered, r.exited, r.transported
-                FROM rounds r
-                JOIN daily_records dr ON r.daily_record_id = dr.id
-                ORDER BY r.time_from";
+                var sql = @"
+                    SELECT dr.unit_name,
+                           r.start_point, r.end_point,
+                           r.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
+                           r.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
+                           r.entered, r.exited, r.transported
+                    FROM rounds r
+                    JOIN daily_records dr ON r.daily_record_id = dr.id";
+
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
+                {
+                    sql += " WHERE dr.id = ANY(@ids)";
+                }
+
+                sql += " ORDER BY r.time_from";
 
                 using var cmd = new NpgsqlCommand(sql, conn);
+
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
+                {
+                    cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
+                }
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new RoundRow(
@@ -269,7 +304,7 @@ namespace PassFlow_Tracker.Application.Services
         }
 
         // 6. Рейсы с номером автобуса
-        public async Task<List<TripRow>> GetTripsAsync()
+        public async Task<List<TripRow>> GetTripsAsync(List<int>? dailyRecordIds = null)
         {
             AppLogger.Info($"[{LogContext}] Запрос рейсов");
             var startTime = DateTime.Now;
@@ -279,18 +314,29 @@ namespace PassFlow_Tracker.Application.Services
                 using var conn = _db.CreateConnection();
                 await conn.OpenAsync();
 
-                const string sql = @"
-                SELECT dr.unit_name,
-                       t.start_point, t.end_point,
-                       t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
-                       t.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
-                       t.entered, t.exited, t.transported
-                FROM trips t
-                JOIN rounds r  ON t.round_id = r.id
-                JOIN daily_records dr ON r.daily_record_id = dr.id
-                ORDER BY t.time_from";
+                var sql = @"
+                    SELECT dr.unit_name,
+                           t.start_point, t.end_point,
+                           t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
+                           t.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
+                           t.entered, t.exited, t.transported
+                    FROM trips t
+                    JOIN rounds r ON t.round_id = r.id
+                    JOIN daily_records dr ON r.daily_record_id = dr.id";
+
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
+                {
+                    sql += " WHERE dr.id = ANY(@ids)";
+                }
+
+                sql += " ORDER BY t.time_from";
 
                 using var cmd = new NpgsqlCommand(sql, conn);
+
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
+                {
+                    cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
+                }
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new TripRow(

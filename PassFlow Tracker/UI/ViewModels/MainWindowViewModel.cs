@@ -265,27 +265,60 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Импорт JSON: {file.Path.LocalPath}");
             Status = "Импорт...";
 
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "import_json",
+                    Parameters = new()
+                    {
+                        ["path"] = file.Path.LocalPath,
+                    }
+                });
+
+                if (response.Success && response.Data != null)
+                {
+                    var idsJson = JsonSerializer.Serialize(response.Data);
+                    var importedIds = JsonSerializer.Deserialize<List<int>>(idsJson);
+
+                    if (importedIds != null && importedIds.Count > 0)
+                    {
+                        await LoadImportedDataForCurrentTab(importedIds);
+                        Status = $"Импортировано: {importedIds.Count} записей";
+                        AppLogger.Info($"[{LogContext}] JSON импортирован: {importedIds.Count} записей");
+                    }
+                    else
+                    {
+                        Status = "Нет данных для импорта";
+                    }
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
+                    AppLogger.Error($"[{LogContext}] Ошибка импорта JSON: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Ошибка импорта", ex);
+            } 
+        }
+        
+        private async Task LoadByIds(string command, string idsJson, Action<string> updateUI)
+        {
             var response = await _ipc.SendAsync(new IpcRequest
             {
-                Command = "import_json",
-                Parameters = new()
-                {
-                    ["path"] = file.Path.LocalPath,
-                }
+                Command = command,
+                Parameters = new() { ["ids"] = idsJson }
             });
 
-            if (response.Success)
+            if (response.Success && response.Data != null)
             {
-                AppLogger.Info($"[{LogContext}] JSON успешно импортирован");
+                var json = JsonSerializer.Serialize(response.Data);
+                updateUI(json);
             }
-            else
-            {
-                AppLogger.Error($"[{LogContext}] Ошибка импорта JSON: {response.Message}");
-            }
-
-            Status = response.Message;
         }
-
 
         [RelayCommand]
         private async Task RunPeakHours()
@@ -423,40 +456,24 @@ namespace PassFlow_Tracker.UI.ViewModels
 
             try
             {
-                var response = await _ipc.SendAsync(new IpcRequest
+                await LoadDataToCollection(
+                command: "trip_stops",
+                idsJson: null,
+                onSuccess: json =>
                 {
-                    Command = "trip_stops"
-                });
-
-                if (response.Success && response.Data != null)
-                {
-                    var json = JsonSerializer.Serialize(response.Data);
                     var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
-
                     TripStops.Clear();
-                    if (data != null)
+                    data?.ForEach(d => TripStops.Add(new TripStopRowViewModel
                     {
-                        foreach (var d in data)
-                        {
-                            TripStops.Add(new TripStopRowViewModel
-                            {
-                                StopNumber = d.StopNumber,
-                                StopName = d.StopName,
-                                Entered = d.Entered,
-                                Exited = d.Exited,
-                                Transported = d.Transported
-                            });
-                        }
-                    }
-
+                        StopNumber = d.StopNumber,
+                        StopName = d.StopName,
+                        Entered = d.Entered,
+                        Exited = d.Exited,
+                        Transported = d.Transported
+                    }));
                     Status = $"Остановки: {data?.Count ?? 0}";
-                    AppLogger.Info($"[{LogContext}] Остановки загружены: {data?.Count ?? 0}");
-                }
-                else
-                {
-                    Status = $"Ошибка: {response.Message}";
-                    AppLogger.Error($"[{LogContext}] Ошибка загрузки остановок: {response.Message}");
-                }
+                },
+                errorMessage: "Ошибка загрузки остановок");
             }
             catch (Exception ex)
             {
@@ -555,33 +572,24 @@ namespace PassFlow_Tracker.UI.ViewModels
             Status = "Загрузка дней...";
             try
             {
-                var response = await _ipc.SendAsync(new IpcRequest { Command = "daily_records" });
-
-                if (response.Success && response.Data != null)
+                await LoadDataToCollection(
+                command: "daily_records",
+                idsJson: null,
+                onSuccess: json =>
                 {
-                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
-                    var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json, JsonSerializerDefaults.SafeOptions);
-
+                    var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
                     DailyRecords.Clear();
-                    if (data != null)
-                        foreach (var d in data)
-                            DailyRecords.Add(new DailyRecordRowViewModel
-                            {
-                                UnitName    = d.UnitName,
-                                RecordDate  = d.RecordDate,
-                                Entered     = d.Entered,
-                                Exited      = d.Exited,
-                                Transported = d.Transported
-                            });
-
+                    data?.ForEach(d => DailyRecords.Add(new DailyRecordRowViewModel
+                    {
+                        UnitName = d.UnitName,
+                        RecordDate = d.RecordDate,
+                        Entered = d.Entered,
+                        Exited = d.Exited,
+                        Transported = d.Transported
+                    }));
                     Status = $"Дни: {data?.Count ?? 0}";
-                    AppLogger.Info($"[{LogContext}] Загружено дней: {data?.Count ?? 0}");
-                }
-                else
-                {
-                    Status = $"Ошибка: {response.Message}";
-                    AppLogger.Error($"[{LogContext}] Ошибка загрузки дней: {response.Message}");
-                }
+                },
+                errorMessage: "Ошибка загрузки дней");
             }
             catch (Exception ex)
             {
@@ -590,49 +598,34 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
-        private async Task LoadRounds()        {
+        private async Task LoadRounds()        
+        {
             AppLogger.Info($"[{LogContext}] Загрузка кругов");
             Status = "Загрузка кругов...";
 
             try
             {
-                var response = await _ipc.SendAsync(new IpcRequest
+                await LoadDataToCollection(
+                command: "rounds",
+                idsJson: null,
+                onSuccess: json =>
                 {
-                    Command = "rounds"
-                });
-
-                if (response.Success && response.Data != null)
-                {
-                    var json = JsonSerializer.Serialize(response.Data);
                     var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
-
                     Rounds.Clear();
-                    if (data != null)
+                    data?.ForEach(d => Rounds.Add(new RoundRowViewModel
                     {
-                        foreach (var d in data)
-                        {
-                            Rounds.Add(new RoundRowViewModel
-                            {
-                                UnitName = d.UnitName,
-                                StartPoint = d.StartPoint,
-                                EndPoint = d.EndPoint,
-                                TimeFrom = d.TimeFrom,
-                                TimeTo = d.TimeTo,
-                                Entered = d.Entered,
-                                Exited = d.Exited,
-                                Transported = d.Transported
-                            });
-                        }
-                    }
-
+                        UnitName = d.UnitName,
+                        StartPoint = d.StartPoint,
+                        EndPoint = d.EndPoint,
+                        TimeFrom = d.TimeFrom,
+                        TimeTo = d.TimeTo,
+                        Entered = d.Entered,
+                        Exited = d.Exited,
+                        Transported = d.Transported
+                    }));
                     Status = $"Круги: {data?.Count ?? 0}";
-                    AppLogger.Info($"[{LogContext}] Круги загружены: {data?.Count ?? 0}");
-                }
-                else
-                {
-                    Status = $"Ошибка: {response.Message}";
-                    AppLogger.Error($"[{LogContext}] Ошибка загрузки кругов: {response.Message}");
-                }
+                },
+                errorMessage: "Ошибка загрузки кругов");
             }
             catch (Exception ex)
             {
@@ -649,48 +642,178 @@ namespace PassFlow_Tracker.UI.ViewModels
 
             try
             {
-                var response = await _ipc.SendAsync(new IpcRequest
+                await LoadDataToCollection(
+                command: "trips",
+                idsJson: null,
+                onSuccess: json =>
                 {
-                    Command = "trips"
-                });
-
-                if (response.Success && response.Data != null)
-                {
-                    var json = JsonSerializer.Serialize(response.Data);
                     var data = JsonSerializer.Deserialize<List<TripRow>>(json);
-
                     Trips.Clear();
-                    if (data != null)
+                    data?.ForEach(d => Trips.Add(new TripRowViewModel
                     {
-                        foreach (var d in data)
-                        {
-                            Trips.Add(new TripRowViewModel
-                            {
-                                UnitName = d.UnitName,
-                                StartPoint = d.StartPoint,
-                                EndPoint = d.EndPoint,
-                                TimeFrom = d.TimeFrom,
-                                TimeTo = d.TimeTo,
-                                Entered = d.Entered,
-                                Exited = d.Exited,
-                                Transported = d.Transported
-                            });
-                        }
-                    }
-
+                        UnitName = d.UnitName,
+                        StartPoint = d.StartPoint,
+                        EndPoint = d.EndPoint,
+                        TimeFrom = d.TimeFrom,
+                        TimeTo = d.TimeTo,
+                        Entered = d.Entered,
+                        Exited = d.Exited,
+                        Transported = d.Transported
+                    }));
                     Status = $"Рейсы: {data?.Count ?? 0}";
-                    AppLogger.Info($"[{LogContext}] Рейсы загружены: {data?.Count ?? 0}");
-                }
-                else
-                {
-                    Status = $"Ошибка: {response.Message}";
-                    AppLogger.Error($"[{LogContext}] Ошибка загрузки рейсов: {response.Message}");
-                }
+                },
+                errorMessage: "Ошибка загрузки рейсов");
             }
             catch (Exception ex)
             {
                 Status = $"Ошибка: {ex.Message}";
                 AppLogger.Error($"[{LogContext}] Исключение при загрузке рейсов", ex);
+            }
+        }
+
+        private async Task LoadImportedDataForCurrentTab(List<int> dailyRecordIds)
+        {
+            var idsJson = JsonSerializer.Serialize(dailyRecordIds);
+
+            try
+            {
+                switch (ActiveTab)
+                {
+                    case "trip_stops":
+                    case "all_data":
+                        await LoadDataToCollection(
+                            command: "trip_stops",
+                            idsJson: idsJson,
+                            onSuccess: json =>
+                            {
+                                var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
+                                TripStops.Clear();
+                                data?.ForEach(d => TripStops.Add(new TripStopRowViewModel
+                                {
+                                    StopNumber = d.StopNumber,
+                                    StopName = d.StopName,
+                                    Entered = d.Entered,
+                                    Exited = d.Exited,
+                                    Transported = d.Transported
+                                }));
+                                Status = $"Импортировано остановок: {data?.Count ?? 0}";
+                            },
+                            errorMessage: "Ошибка загрузки импортированных остановок");
+                        break;
+
+                    case "trips":
+                        await LoadDataToCollection(
+                            command: "trips",
+                            idsJson: idsJson,
+                            onSuccess: json =>
+                            {
+                                var data = JsonSerializer.Deserialize<List<TripRow>>(json);
+                                Trips.Clear();
+                                data?.ForEach(d => Trips.Add(new TripRowViewModel
+                                {
+                                    UnitName = d.UnitName,
+                                    StartPoint = d.StartPoint,
+                                    EndPoint = d.EndPoint,
+                                    TimeFrom = d.TimeFrom,
+                                    TimeTo = d.TimeTo,
+                                    Entered = d.Entered,
+                                    Exited = d.Exited,
+                                    Transported = d.Transported
+                                }));
+                                Status = $"Импортировано рейсов: {data?.Count ?? 0}";
+                            },
+                            errorMessage: "Ошибка загрузки импортированных рейсов");
+                        break;
+
+                    case "rounds":
+                        await LoadDataToCollection(
+                            command: "rounds",
+                            idsJson: idsJson,
+                            onSuccess: json =>
+                            {
+                                var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
+                                Rounds.Clear();
+                                data?.ForEach(d => Rounds.Add(new RoundRowViewModel
+                                {
+                                    UnitName = d.UnitName,
+                                    StartPoint = d.StartPoint,
+                                    EndPoint = d.EndPoint,
+                                    TimeFrom = d.TimeFrom,
+                                    TimeTo = d.TimeTo,
+                                    Entered = d.Entered,
+                                    Exited = d.Exited,
+                                    Transported = d.Transported
+                                }));
+                                Status = $"Импортировано кругов: {data?.Count ?? 0}";
+                            },
+                            errorMessage: "Ошибка загрузки импортированных кругов");
+                        break;
+
+                    case "daily_records":
+                        await LoadDataToCollection(
+                            command: "daily_records",
+                            idsJson: idsJson,
+                            onSuccess: json =>
+                            {
+                                var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
+                                DailyRecords.Clear();
+                                data?.ForEach(d => DailyRecords.Add(new DailyRecordRowViewModel
+                                {
+                                    UnitName = d.UnitName,
+                                    RecordDate = d.RecordDate,
+                                    Entered = d.Entered,
+                                    Exited = d.Exited,
+                                    Transported = d.Transported
+                                }));
+                                Status = $"Импортировано дней: {data?.Count ?? 0}";
+                            },
+                            errorMessage: "Ошибка загрузки импортированных дней");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки импортированных данных", ex);
+                Status = "Ошибка отображения импорта";
+            }
+        }
+
+        private async Task LoadDataToCollection(
+            string command,
+            string? idsJson,
+            Action<string> onSuccess,
+            string errorMessage)
+        {
+            try
+            {
+                var parameters = new Dictionary<string, string>();
+                if (idsJson != null)
+                {
+                    parameters["ids"] = idsJson;
+                }
+
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = command,
+                    Parameters = parameters.Count > 0 ? parameters : null
+                });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    onSuccess(json);
+                    AppLogger.Info($"[{LogContext}] Данные '{command}' загружены успешно");
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
+                    AppLogger.Error($"[{LogContext}] {errorMessage}: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] {errorMessage}", ex);
             }
         }
     }
