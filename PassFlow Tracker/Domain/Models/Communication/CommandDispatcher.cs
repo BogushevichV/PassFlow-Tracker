@@ -1,9 +1,12 @@
-﻿using PassFlow_Tracker.Application.Services;
+﻿using DocumentFormat.OpenXml.Drawing;
+using PassFlow_Tracker.Application.Services;
 using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -39,10 +42,10 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                     "peak_hours" => await GetPeakHours(),
                     "top_stops" => await GetTopStops(request),
                     "low_activity" => await GetLowTrips(request),
-                    "trip_stops" => await GetTripStops(),
-                    "rounds"     => await GetRounds(),
-                    "trips"      => await GetTrips(),
-                    "daily_records" => await GetDailyRecords(),
+                    "trip_stops" => await GetTripStops(request),
+                    "rounds"     => await GetRounds(request),
+                    "trips"      => await GetTrips(request),
+                    "daily_records" => await GetDailyRecords(request),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
 
@@ -71,12 +74,52 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         private async Task<IpcResponse> ImportJson(IpcRequest req)
         {
             var path = req.Parameters?["path"];
+
+            // Проверка на пустой путь
+            if (string.IsNullOrEmpty(path))
+            {
+                AppLogger.Warning($"[{LogContext}] Импорт JSON: путь не указан");
+                return new IpcResponse
+                {
+                    Success = false,
+                    Message = "Путь к файлу не указан"
+                };
+            }
+
             AppLogger.Info($"[{LogContext}] Импорт JSON из: {path}");
 
-            await _json.ImportAsync(path);
+            try
+            {
+                // Вызываем импорт и получаем ID добавленных записей
+                var importedIds = await _json.ImportAsync(path);
 
-            AppLogger.Info($"[{LogContext}] JSON импортирован успешно");
-            return new IpcResponse { Success = true, Message = "JSON imported" };
+                AppLogger.Info($"[{LogContext}] JSON импортирован успешно. Записей: {importedIds.Count}");
+
+                return new IpcResponse
+                {
+                    Success = true,
+                    Message = $"Импортировано записей: {importedIds.Count}",
+                    Data = importedIds  // ← List<int> — ID новых daily_records
+                };
+            }
+            catch (FileNotFoundException)
+            {
+                AppLogger.Warning($"[{LogContext}] Файл не найден: {path}");
+                return new IpcResponse
+                {
+                    Success = false,
+                    Message = "Файл не найден"
+                };
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка импорта JSON", ex);
+                return new IpcResponse
+                {
+                    Success = false,
+                    Message = "Внутренняя ошибка при импорте"
+                };
+            }
         }
 
         private async Task<IpcResponse> GetPeakHours()
@@ -109,40 +152,52 @@ namespace PassFlow_Tracker.Domain.Models.Communication
 
             return new IpcResponse { Success = true, Data = data };
         }
-        private async Task<IpcResponse> GetTripStops()
+        private async Task<IpcResponse> GetTripStops(IpcRequest req)
         {
+            var ids = DeserializeIds(req);
             AppLogger.Info($"[{LogContext}] Получение списка остановок");
-            var data = await _analytics.GetTripStopsAsync();
+            var data = await _analytics.GetTripStopsAsync(ids);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} остановок");
 
             return new IpcResponse { Success = true, Data = data };
         }
 
-        private async Task<IpcResponse> GetRounds()
+        private async Task<IpcResponse> GetRounds(IpcRequest req)
         {
+            var ids = DeserializeIds(req);
             AppLogger.Info($"[{LogContext}] Получение кругов");
-            var data = await _analytics.GetRoundsAsync();
+            var data = await _analytics.GetRoundsAsync(ids);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} кругов");
 
             return new IpcResponse { Success = true, Data = data };
         }
 
-        private async Task<IpcResponse> GetTrips()
+        private async Task<IpcResponse> GetTrips(IpcRequest req)
         {
+            var ids = DeserializeIds(req);
             AppLogger.Info($"[{LogContext}] Получение рейсов");
-            var data = await _analytics.GetTripsAsync();
+            var data = await _analytics.GetTripsAsync(ids);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} рейсов");
 
             return new IpcResponse { Success = true, Data = data };
         }
 
-        private async Task<IpcResponse> GetDailyRecords()
+        private async Task<IpcResponse> GetDailyRecords(IpcRequest req)
         {
+            var ids = DeserializeIds(req);
             AppLogger.Info($"[{LogContext}] Получение дней");
-            var data = await _analytics.GetDailyRecordsAsync();
+            var data = await _analytics.GetDailyRecordsAsync(ids);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} дней");
 
             return new IpcResponse { Success = true, Data = data };
+        }
+
+        private List<int>? DeserializeIds(IpcRequest req)
+        {
+            var idsJson = req.Parameters?["ids"];
+            if (string.IsNullOrEmpty(idsJson)) return null;
+
+            return JsonSerializer.Deserialize<List<int>>(idsJson);
         }
     }
 }

@@ -26,16 +26,16 @@ namespace PassFlow_Tracker.Application.Services
             _db = db;
         }
 
-        public async Task ImportAsync(string filePath)
+        public async Task<List<int>> ImportAsync(string filePath)
         {
             if (!File.Exists(filePath))
             {
                 AppLogger.Warning($"[{LogContext}] Файл не найден: {filePath}");
-                Console.WriteLine("Файл не найден.");
-                return;
+                throw new FileNotFoundException("Файл не найден", filePath);
             }
 
             AppLogger.Info($"[{LogContext}] Начало импорта: {filePath}");
+            var importedIds = new List<int>();
             var startTime = DateTime.Now;
 
             try
@@ -48,8 +48,7 @@ namespace PassFlow_Tracker.Application.Services
                 if (records == null)
                 {
                     AppLogger.Error($"[{LogContext}] Ошибка десериализации JSON");
-                    Console.WriteLine("Ошибка десериализации JSON.");
-                    return;
+                    throw new InvalidOperationException("Ошибка десериализации JSON");
                 }
 
                 AppLogger.Info($"[{LogContext}] Десериализовано записей: {records.Count}");
@@ -61,7 +60,8 @@ namespace PassFlow_Tracker.Application.Services
                 {
                     try
                     {
-                        await SaveRecordAsync(record);
+                        int dailyId = await SaveRecordAsync(record);
+                        importedIds.Add(dailyId);
                         successCount++;
                     }
                     catch (Exception ex)
@@ -73,6 +73,7 @@ namespace PassFlow_Tracker.Application.Services
 
                 var duration = (DateTime.Now - startTime).TotalMilliseconds;
                 AppLogger.Info($"[{LogContext}] Импорт завершён за {duration:F0}мс. Успешно: {successCount}, ошибок: {errorCount}");
+                return importedIds;
             }
             catch (Exception ex)
             {
@@ -82,7 +83,7 @@ namespace PassFlow_Tracker.Application.Services
         }
 
 
-        private async Task SaveRecordAsync(RootRecord data)
+        private async Task<int> SaveRecordAsync(RootRecord data)
         {
             AppLogger.Info($"[{LogContext}] Сохранение записи: {data.Unit}, {data.Date}");
 
@@ -166,6 +167,8 @@ namespace PassFlow_Tracker.Application.Services
                 await transaction.CommitAsync();
 
                 AppLogger.Info($"[{LogContext}] Запись '{data.Unit}' от {data.Date} сохранена успешно");
+
+                return dailyId;
             }
             catch (Exception ex)
             {
