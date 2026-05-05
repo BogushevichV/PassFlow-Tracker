@@ -99,7 +99,11 @@ namespace PassFlow_Tracker.Infrastructure.Docker
                 {
                     Image = $"{_settings.ImageName}:{_settings.Tag}",
                     Name = _settings.ContainerName,
-                    Env = new List<string> { $"POSTGRES_PASSWORD={_settings.Password}" },
+                    Env = new List<string>
+                    {
+                        $"POSTGRES_PASSWORD={_settings.Password}",
+                        "PGDATA=/var/lib/postgresql/data"
+                    },
                     HostConfig = hostConfig
                 });
 
@@ -123,8 +127,9 @@ namespace PassFlow_Tracker.Infrastructure.Docker
                     Console.WriteLine("PostgreSQL готов к работе.");
                     return;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Console.WriteLine($"Ошибка {ex.Message} {ex.Data}...");
                     Console.WriteLine($"Попытка {i}/{maxRetries}: PostgreSQL ещё запускается...");
                     await Task.Delay(delayMs);
                 }

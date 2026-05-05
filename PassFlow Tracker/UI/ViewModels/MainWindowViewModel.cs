@@ -288,6 +288,9 @@ namespace PassFlow_Tracker.UI.ViewModels
         private async Task RunPeakHours()
         {
             AppLogger.Info($"[{LogContext}] Запрос: часы пик");
+
+            ActiveTab = "trip_stops";
+
             try
             {
                 var response = await _ipc.SendAsync(new IpcRequest
@@ -325,6 +328,8 @@ namespace PassFlow_Tracker.UI.ViewModels
         private async Task RunTopStops()
         {
             AppLogger.Info($"[{LogContext}] Запрос: топ-{TopN} остановок");
+
+            ActiveTab = "trip_stops";
 
             try
             {
@@ -367,6 +372,8 @@ namespace PassFlow_Tracker.UI.ViewModels
         private async Task RunLowActivity()
         {
             AppLogger.Info($"[{LogContext}] Запрос: низкая активность (порог={Threshold})");
+
+            ActiveTab = "trips";
 
             try
             {
