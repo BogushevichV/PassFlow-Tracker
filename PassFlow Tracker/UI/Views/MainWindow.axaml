@@ -64,7 +64,7 @@
       <Setter Property="FontSize" Value="13"/>
     </Style>
     <Style Selector="Button.tab PathIcon">
-      <Setter Property="Foreground" Value="#1D4ED8"/>
+      <Setter Property="Foreground" Value="#64748B"/>
     </Style>
     <Style Selector="Button.tab:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="#E2E8F0"/>
@@ -74,6 +74,29 @@
       <Setter Property="BorderBrush" Value="#E2E8F0"/>
       <Setter Property="Foreground" Value="#1D4ED8"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Button.tab.active PathIcon">
+      <Setter Property="Foreground" Value="#1D4ED8"/>
+    </Style>
+
+    <!-- TreeView styles -->
+    <Style Selector="TreeView">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="TreeViewItem">
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="Margin" Value="0"/>
+    </Style>
+    <Style Selector="TreeViewItem:pointerover /template/ Border#PART_Header">
+      <Setter Property="Background" Value="#F8FAFC"/>
+    </Style>
+    <Style Selector="TreeViewItem:selected /template/ Border#PART_Header">
+      <Setter Property="Background" Value="#EFF6FF"/>
+    </Style>
+    <Style Selector="TreeViewItem:selected:pointerover /template/ Border#PART_Header">
+      <Setter Property="Background" Value="#DBEAFE"/>
     </Style>
     <!-- DataGrid cell editing -->
     <Style Selector="DataGrid">
@@ -530,14 +553,16 @@
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
           <StackPanel Orientation="Horizontal" Margin="12,8,12,0" Spacing="2">
 
-            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="all_data">
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="all_data"
+                    Classes.active="{Binding ShowAllData}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="M3 3h7v7H3zm0 11h7v7H3zm11-11h7v7h-7zm0 11h7v7h-7z" Width="13" Height="13"/>
                 <TextBlock Text="Все данные"/>
               </StackPanel>
             </Button>
 
-            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="daily_records">
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="daily_records"
+                    Classes.active="{Binding ShowDailyRecords}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"
                           Width="13" Height="13"/>
@@ -545,7 +570,8 @@
               </StackPanel>
             </Button>
 
-            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="rounds">
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="rounds"
+                    Classes.active="{Binding ShowRounds}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
                           Width="13" Height="13"/>
@@ -553,7 +579,8 @@
               </StackPanel>
             </Button>
 
-            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="trips">
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="trips"
+                    Classes.active="{Binding ShowTrips}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm9 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM4 11V6h16v5H4z"
                           Width="13" Height="13"/>
@@ -561,7 +588,8 @@
               </StackPanel>
             </Button>
 
-            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="trip_stops">
+            <Button Classes="tab" Command="{Binding SetActiveTabCommand}" CommandParameter="trip_stops"
+                    Classes.active="{Binding ShowTripStops}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
                           Width="13" Height="13"/>
@@ -582,6 +610,147 @@
           <!-- TABLE VIEW: единый DataGrid, ItemsSource переключается по вкладке -->
           <Panel Grid.Row="0" IsVisible="{Binding IsTableView}">
 
+            <!-- Все данные — дерево -->
+            <Grid IsVisible="{Binding ShowAllData}" RowDefinitions="Auto,*">
+
+              <!-- Шапка колонок -->
+              <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1"
+                      Padding="8,6">
+                <StackPanel Orientation="Horizontal" Spacing="0">
+                  <!-- Отступ: стрелка раскрытия первого уровня (~20px) -->
+                  <Border Width="20"/>
+                  <TextBlock Text="Маршрут / Остановка" FontWeight="SemiBold" FontSize="12"
+                             Foreground="#475569" MinWidth="420"/>
+                  <TextBlock Text="Время" FontWeight="SemiBold" FontSize="12"
+                             Foreground="#475569" MinWidth="120"/>
+                  <TextBlock Text="↑ Вошло" FontWeight="SemiBold" FontSize="12"
+                             Foreground="#16A34A" MinWidth="65" TextAlignment="Right"/>
+                  <TextBlock Text="↓ Вышло" FontWeight="SemiBold" FontSize="12"
+                             Foreground="#DC2626" MinWidth="65" TextAlignment="Right"/>
+                  <TextBlock Text="В салоне" FontWeight="SemiBold" FontSize="12"
+                             Foreground="#475569" MinWidth="65" TextAlignment="Right"/>
+                </StackPanel>
+              </Border>
+
+              <!-- Дерево с горизонтальным скроллом -->
+              <ScrollViewer Grid.Row="1"
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Auto">
+                <TreeView ItemsSource="{Binding AllDataTree}"
+                          Background="White">
+                  <TreeView.DataTemplates>
+
+                    <!-- Шаблон дня (корневой) — уровень 0, отступ ~20px -->
+                    <TreeDataTemplate DataType="{x:Type vm:DayNodeViewModel}"
+                                      ItemsSource="{Binding Rounds}">
+                      <Border Padding="4,4" Background="#EFF6FF" CornerRadius="3" Margin="0,1">
+                        <StackPanel Orientation="Horizontal" Spacing="0">
+                          <StackPanel Orientation="Horizontal" Spacing="6" MinWidth="420">
+                            <PathIcon Data="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"
+                                      Width="13" Height="13" Foreground="#1D4ED8"/>
+                            <TextBlock Text="{Binding UnitName}" FontWeight="Bold" Foreground="#1E3A5F" MinWidth="120"/>
+                            <TextBlock Text="{Binding RecordDate}" Foreground="#1D4ED8" FontWeight="SemiBold"/>
+                          </StackPanel>
+                          <TextBlock Text="—" Foreground="#94A3B8" MinWidth="120"/>
+                          <TextBlock Text="{Binding Entered}" Foreground="#16A34A" FontWeight="SemiBold"
+                                     MinWidth="65" TextAlignment="Right"/>
+                          <TextBlock Text="{Binding Exited}" Foreground="#DC2626" FontWeight="SemiBold"
+                                     MinWidth="65" TextAlignment="Right"/>
+                          <TextBlock Text="{Binding Transported}" FontWeight="Bold" Foreground="#1E293B"
+                                     MinWidth="65" TextAlignment="Right"/>
+                        </StackPanel>
+                      </Border>
+                    </TreeDataTemplate>
+
+                    <!-- Шаблон круга — уровень 1, отступ ~36px -->
+                    <TreeDataTemplate DataType="{x:Type vm:RoundNodeViewModel}"
+                                      ItemsSource="{Binding Trips}">
+                      <Border Padding="4,3" Background="#F0FDF4" CornerRadius="3" Margin="0,1">
+                        <StackPanel Orientation="Horizontal" Spacing="0">
+                          <StackPanel Orientation="Horizontal" Spacing="4" MinWidth="404">
+                            <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
+                                      Width="11" Height="11" Foreground="#16A34A"/>
+                            <TextBlock Text="Круг" Foreground="#166534" FontWeight="SemiBold" MinWidth="36"/>
+                            <TextBlock Text="{Binding StartPoint}" Foreground="#15803D" MinWidth="90"/>
+                            <TextBlock Text="→" Foreground="#94A3B8"/>
+                            <TextBlock Text="{Binding EndPoint}" Foreground="#15803D" MinWidth="90"/>
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="4" MinWidth="120">
+                            <TextBlock Text="{Binding TimeFrom}" Foreground="#64748B" MinWidth="45"/>
+                            <TextBlock Text="–" Foreground="#94A3B8"/>
+                            <TextBlock Text="{Binding TimeTo}" Foreground="#64748B"/>
+                          </StackPanel>
+                          <TextBlock Text="{Binding Entered}" Foreground="#16A34A"
+                                     MinWidth="65" TextAlignment="Right"/>
+                          <TextBlock Text="{Binding Exited}" Foreground="#DC2626"
+                                     MinWidth="65" TextAlignment="Right"/>
+                          <TextBlock Text="{Binding Transported}" Foreground="#334155"
+                                     MinWidth="65" TextAlignment="Right"/>
+                        </StackPanel>
+                      </Border>
+                    </TreeDataTemplate>
+
+                    <!-- Шаблон рейса — уровень 2, отступ ~52px -->
+                    <TreeDataTemplate DataType="{x:Type vm:TripNodeViewModel}"
+                                      ItemsSource="{Binding Stops}">
+                      <Border Padding="4,3" Background="#FFFBEB" CornerRadius="3" Margin="0,1">
+                        <StackPanel Orientation="Horizontal" Spacing="0">
+                          <StackPanel Orientation="Horizontal" Spacing="4" MinWidth="388">
+                            <PathIcon Data="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm9 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM4 11V6h16v5H4z"
+                                      Width="11" Height="11" Foreground="#B45309"/>
+                            <TextBlock Text="Рейс" Foreground="#92400E" FontWeight="SemiBold" MinWidth="36"/>
+                            <TextBlock Text="{Binding StartPoint}" Foreground="#B45309" MinWidth="90"/>
+                            <TextBlock Text="→" Foreground="#94A3B8"/>
+                            <TextBlock Text="{Binding EndPoint}" Foreground="#B45309" MinWidth="90"/>
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="4" MinWidth="120">
+                            <TextBlock Text="{Binding TimeFrom}" Foreground="#64748B" MinWidth="45"/>
+                            <TextBlock Text="–" Foreground="#94A3B8"/>
+                            <TextBlock Text="{Binding TimeTo}" Foreground="#64748B"/>
+                          </StackPanel>
+                          <TextBlock Text="{Binding Entered}" Foreground="#16A34A"
+                                     MinWidth="65" TextAlignment="Right"/>
+                          <TextBlock Text="{Binding Exited}" Foreground="#DC2626"
+                                     MinWidth="65" TextAlignment="Right"/>
+                          <TextBlock Text="{Binding Transported}" Foreground="#334155"
+                                     MinWidth="65" TextAlignment="Right"/>
+                        </StackPanel>
+                      </Border>
+                    </TreeDataTemplate>
+
+                    <!-- Шаблон остановки (листовой) — уровень 3, отступ ~68px -->
+                    <DataTemplate DataType="{x:Type vm:StopNodeViewModel}">
+                      <Border Padding="4,2" CornerRadius="3" Margin="0,1">
+                        <StackPanel Orientation="Horizontal" Spacing="0">
+                          <StackPanel Orientation="Horizontal" Spacing="6" MinWidth="372">
+                            <TextBlock Text="{Binding StopNumber}" Foreground="#1E293B"
+                                       MinWidth="28" TextAlignment="Right" FontSize="11"/>
+                            <TextBlock Text="{Binding StopName}" Foreground="#1E293B" MinWidth="200" FontSize="12"/>
+                            <TextBlock Text="[дубль]" Foreground="#F59E0B" FontSize="10"
+                                       IsVisible="{Binding IsDuplicate}" VerticalAlignment="Center"/>
+                            <TextBlock Text="[пропуск]" Foreground="#64748B" FontSize="10"
+                                       IsVisible="{Binding IsSkipped}" VerticalAlignment="Center"/>
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="4" MinWidth="120">
+                            <TextBlock Text="{Binding TimeFrom}" Foreground="#1E293B"
+                                       MinWidth="45" FontSize="11"/>
+                            <TextBlock Text="–" Foreground="#1E293B" FontSize="11"/>
+                            <TextBlock Text="{Binding TimeTo}" Foreground="#1E293B" FontSize="11"/>
+                          </StackPanel>
+                          <TextBlock Text="{Binding Entered}" Foreground="#16A34A"
+                                     MinWidth="65" TextAlignment="Right" FontSize="12"/>
+                          <TextBlock Text="{Binding Exited}" Foreground="#DC2626"
+                                     MinWidth="65" TextAlignment="Right" FontSize="12"/>
+                          <TextBlock Text="{Binding Transported}" Foreground="#1E293B"
+                                     MinWidth="65" TextAlignment="Right" FontSize="12"/>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+
+                  </TreeView.DataTemplates>
+                </TreeView>
+              </ScrollViewer>
+            </Grid>
             <!-- Дни -->
             <DataGrid ItemsSource="{Binding DailyRecords}"
                       IsVisible="{Binding ShowDailyRecords}"

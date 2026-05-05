@@ -31,11 +31,13 @@ namespace PassFlow_Tracker.UI.ViewModels
         public ObservableCollection<RoundRowViewModel> Rounds { get; } = new();
         public ObservableCollection<TripRowViewModel> Trips { get; } = new();
         public ObservableCollection<DailyRecordRowViewModel> DailyRecords { get; } = new();
+        public ObservableCollection<DayNodeViewModel> AllDataTree { get; } = new();
 
         public bool ShowTripStops    => ActiveTab == "trip_stops";
         public bool ShowRounds       => ActiveTab == "rounds";
         public bool ShowTrips        => ActiveTab == "trips";
         public bool ShowDailyRecords => ActiveTab == "daily_records";
+        public bool ShowAllData      => ActiveTab == "all_data";
 
         partial void OnActiveTabChanged(string value)
         {
@@ -43,6 +45,7 @@ namespace PassFlow_Tracker.UI.ViewModels
             OnPropertyChanged(nameof(ShowRounds));
             OnPropertyChanged(nameof(ShowTrips));
             OnPropertyChanged(nameof(ShowDailyRecords));
+            OnPropertyChanged(nameof(ShowAllData));
         }
 
         private const string LogContext = "MainWindowViewModel";
@@ -189,7 +192,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDailyRecords();
                         break;
                     case "all_data":
-                        Status = "Загрузка всех данных...";
+                        await LoadAllData();
                         break;
                 }
                 AppLogger.Info($"[{LogContext}] Вкладка '{tab}' загружена успешно");
@@ -462,8 +465,92 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
-        private async Task LoadDailyRecords()
+        private async Task LoadAllData()
         {
+            AppLogger.Info($"[{LogContext}] Загрузка всех данных (дерево)");
+            Status = "Загрузка всех данных...";
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest { Command = "all_data" });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
+                    var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
+
+                    AllDataTree.Clear();
+                    if (data != null)
+                        foreach (var day in data)
+                        {
+                            var dayNode = new DayNodeViewModel
+                            {
+                                UnitName    = day.UnitName,
+                                RecordDate  = day.RecordDate,
+                                Entered     = day.Entered,
+                                Exited      = day.Exited,
+                                Transported = day.Transported
+                            };
+                            foreach (var round in day.Rounds)
+                            {
+                                var roundNode = new RoundNodeViewModel
+                                {
+                                    StartPoint  = round.StartPoint,
+                                    EndPoint    = round.EndPoint,
+                                    TimeFrom    = round.TimeFrom,
+                                    TimeTo      = round.TimeTo,
+                                    Entered     = round.Entered,
+                                    Exited      = round.Exited,
+                                    Transported = round.Transported
+                                };
+                                foreach (var trip in round.Trips)
+                                {
+                                    var tripNode = new TripNodeViewModel
+                                    {
+                                        StartPoint  = trip.StartPoint,
+                                        EndPoint    = trip.EndPoint,
+                                        TimeFrom    = trip.TimeFrom,
+                                        TimeTo      = trip.TimeTo,
+                                        Entered     = trip.Entered,
+                                        Exited      = trip.Exited,
+                                        Transported = trip.Transported
+                                    };
+                                    foreach (var stop in trip.Stops)
+                                        tripNode.Stops.Add(new StopNodeViewModel
+                                        {
+                                            StopNumber  = stop.StopNumber,
+                                            StopName    = stop.StopName,
+                                            IsDuplicate = stop.IsDuplicate,
+                                            IsSkipped   = stop.IsSkipped,
+                                            TimeFrom    = stop.TimeFrom,
+                                            TimeTo      = stop.TimeTo,
+                                            Entered     = stop.Entered,
+                                            Exited      = stop.Exited,
+                                            Transported = stop.Transported
+                                        });
+                                    roundNode.Trips.Add(tripNode);
+                                }
+                                dayNode.Rounds.Add(roundNode);
+                            }
+                            AllDataTree.Add(dayNode);
+                        }
+
+                    Status = $"Все данные: {data?.Count ?? 0} дней";
+                    AppLogger.Info($"[{LogContext}] Дерево загружено: {data?.Count ?? 0} дней");
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
+                    AppLogger.Error($"[{LogContext}] Ошибка загрузки дерева: {response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Исключение при загрузке дерева", ex);
+            }
+        }
+
+        private async Task LoadDailyRecords()        {
             AppLogger.Info($"[{LogContext}] Загрузка дней");
             Status = "Загрузка дней...";
             try

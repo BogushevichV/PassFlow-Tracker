@@ -43,4 +43,52 @@ namespace PassFlow_Tracker.Domain.Models
         int Entered,
         int Exited,
         int Transported);
+
+    // --- Иерархические DTO для вкладки "Все данные" ---
+    public class AllDataStopDto
+    {
+        public int StopNumber { get; set; }
+        public string StopName { get; set; } = "";
+        public bool IsDuplicate { get; set; }
+        public bool IsSkipped { get; set; }
+        public string TimeFrom { get; set; } = "";
+        public string TimeTo { get; set; } = "";
+        public int Entered { get; set; }
+        public int Exited { get; set; }
+        public int Transported { get; set; }
+    }
+
+    public class AllDataTripDto
+    {
+        public string StartPoint { get; set; } = "";
+        public string EndPoint { get; set; } = "";
+        public string TimeFrom { get; set; } = "";
+        public string TimeTo { get; set; } = "";
+        public int Entered { get; set; }
+        public int Exited { get; set; }
+        public int Transported { get; set; }
+        public List<AllDataStopDto> Stops { get; set; } = new();
+    }
+
+    public class AllDataRoundDto
+    {
+        public string StartPoint { get; set; } = "";
+        public string EndPoint { get; set; } = "";
+        public string TimeFrom { get; set; } = "";
+        public string TimeTo { get; set; } = "";
+        public int Entered { get; set; }
+        public int Exited { get; set; }
+        public int Transported { get; set; }
+        public List<AllDataTripDto> Trips { get; set; } = new();
+    }
+
+    public class AllDataDayDto
+    {
+        public string UnitName { get; set; } = "";
+        public string RecordDate { get; set; } = "";
+        public int Entered { get; set; }
+        public int Exited { get; set; }
+        public int Transported { get; set; }
+        public List<AllDataRoundDto> Rounds { get; set; } = new();
+    }
 }

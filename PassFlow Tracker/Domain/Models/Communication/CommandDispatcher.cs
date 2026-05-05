@@ -43,6 +43,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                     "rounds"     => await GetRounds(),
                     "trips"      => await GetTrips(),
                     "daily_records" => await GetDailyRecords(),
+                    "all_data"      => await GetAllData(),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
 
@@ -141,7 +142,14 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             AppLogger.Info($"[{LogContext}] Получение дней");
             var data = await _analytics.GetDailyRecordsAsync();
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} дней");
+            return new IpcResponse { Success = true, Data = data };
+        }
 
+        private async Task<IpcResponse> GetAllData()
+        {
+            AppLogger.Info($"[{LogContext}] Получение всех данных (дерево)");
+            var data = await _analytics.GetAllDataAsync();
+            AppLogger.Info($"[{LogContext}] Найдено {data.Count} дней в дереве");
             return new IpcResponse { Success = true, Data = data };
         }
     }
