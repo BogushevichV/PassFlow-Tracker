@@ -20,6 +20,8 @@ namespace PassFlow_Tracker
     {
         private IpcHost? _IpcHost;
 
+        private const string LogContext = "App";
+
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
@@ -29,13 +31,13 @@ namespace PassFlow_Tracker
         {
             try
             {
-                AppLogger.Info("Запуск приложения");
+                AppLogger.Info($"[{LogContext}] Запуск приложения");
 
                 var db = new DbConnectionFactory();
                 var json = new JsonImportService(db);
                 var analytics = new TransportAnalytics(db);
 
-                AppLogger.Info("Сервисы инициализированы");
+                AppLogger.Info($"[{LogContext}] Сервисы инициализированы");
 
                 var dispatcher = new CommandDispatcher(json, analytics);
                 _IpcHost = new IpcHost(dispatcher);
@@ -49,21 +51,21 @@ namespace PassFlow_Tracker
 
                     desktop.Exit += (s, e) =>
                     {
-                        AppLogger.Info("Приложение завершается, останавливаем IPC-хост...");
+                        AppLogger.Info($"[{LogContext}] Приложение завершается, останавливаем IPC-хост...");
                         _IpcHost?.Stop();
-                        AppLogger.Info("IPC-хост остановлен");
+                        AppLogger.Info($"[{LogContext}] IPC-хост остановлен");
                     };
 
                     DisableAvaloniaDataAnnotationValidation();
                     desktop.MainWindow = new MainWindow();
                 }
 
-                AppLogger.Info("Приложение успешно запущено");
+                AppLogger.Info($"[{LogContext}] Приложение успешно запущено");
                 base.OnFrameworkInitializationCompleted();
             }
             catch (Exception ex)
             {
-                AppLogger.Error("Критическая ошибка при запуске приложения", ex);
+                AppLogger.Error($"[{LogContext}] Критическая ошибка при запуске приложения", ex);
                 throw;
             }
         }
