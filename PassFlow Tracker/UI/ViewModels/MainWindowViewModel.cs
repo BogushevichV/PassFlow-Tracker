@@ -1,5 +1,6 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using ClosedXML.Excel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DocumentFormat.OpenXml.Drawing.Charts;
@@ -13,6 +14,7 @@ using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -353,6 +355,73 @@ namespace PassFlow_Tracker.UI.ViewModels
             {
                 Status = $"Ошибка: {ex.Message}";
                 AppLogger.Error($"[{LogContext}] Ошибка экспорта", ex);
+            }
+        }
+
+        [RelayCommand]
+        private async Task ExportExcel()
+        {
+            if (MainWindow == null) return;
+
+            var file = await MainWindow.StorageProvider.SaveFilePickerAsync(
+                new FilePickerSaveOptions
+                {
+                    Title = "Сохранить Excel",
+                    DefaultExtension = "xlsx",
+                    FileTypeChoices = [new FilePickerFileType("Excel") { Patterns = ["*.xlsx"] }]
+                });
+
+            if (file == null) return;
+
+            Status = "Экспорт в Excel...";
+
+            try
+            {
+                var tempPath = Path.GetTempFileName() + ".xlsx";
+
+                await Task.Run(() =>
+                {
+                    using var workbook = new XLWorkbook();
+
+                    switch (ActiveTab)
+                    {
+                        case "trip_stops":
+                            ExcelExportService.ExportTripStopsToExcel(workbook, TripStops);
+                            break;
+                        case "trips":
+                            ExcelExportService.ExportTripsToExcel(workbook, Trips);
+                            break;
+                        case "rounds":
+                            ExcelExportService.ExportRoundsToExcel(workbook, Rounds);
+                            break;
+                        case "daily_records":
+                            ExcelExportService.ExportDailyRecordsToExcel(workbook, DailyRecords);
+                            break;
+                        case "all_data":
+                            ExcelExportService.ExportAllDataToExcel(workbook, AllDataTree);
+                            break;
+                    }
+
+                    workbook.SaveAs(tempPath);
+                });
+
+                File.Copy(tempPath, file.Path.LocalPath, true);
+                File.Delete(tempPath);
+
+                Status = $"Экспортировано в: {Path.GetFileName(file.Path.LocalPath)}";
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = file.Path.LocalPath,
+                    UseShellExecute = true
+                });
+
+                AppLogger.Info($"[{LogContext}] Экспорт Excel: {file.Path.LocalPath}");
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Ошибка экспорта Excel", ex);
             }
         }
 
