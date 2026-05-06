@@ -13,6 +13,7 @@ using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -304,7 +305,57 @@ namespace PassFlow_Tracker.UI.ViewModels
                 AppLogger.Error($"[{LogContext}] Ошибка импорта", ex);
             } 
         }
-        
+
+        // MainWindowViewModel.cs
+
+        [RelayCommand]
+        private async Task ExportJson()
+        {
+            if (MainWindow == null) return;
+
+            var file = await MainWindow.StorageProvider.SaveFilePickerAsync(
+                new FilePickerSaveOptions
+                {
+                    Title = "Сохранить JSON",
+                    DefaultExtension = "json",
+                    FileTypeChoices = [new FilePickerFileType("JSON") { Patterns = ["*.json"] }]
+                });
+
+            if (file == null) return;
+
+            Status = "Экспорт...";
+
+            try
+            {
+                // Формируем данные в формате RootRecord (как при импорте)
+                List<RootRecord> exportData = ActiveTab switch
+                {
+                    "trip_stops" => JsonExportService.ExportTripStops(TripStops),
+                    "trips" => JsonExportService.ExportTrips(Trips),
+                    "rounds" => JsonExportService.ExportRounds(Rounds),
+                    "daily_records" => JsonExportService.ExportDailyRecords(DailyRecords),
+                    "all_data" => JsonExportService.ExportAllData(AllDataTree),
+                    _ => throw new InvalidOperationException("Нечего экспортировать")
+                };
+
+                var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+
+                await File.WriteAllTextAsync(file.Path.LocalPath, json);
+
+                Status = $"Экспортировано в: {Path.GetFileName(file.Path.LocalPath)}";
+                AppLogger.Info($"[{LogContext}] Экспорт: {file.Path.LocalPath} ({exportData.Count} записей)");
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Ошибка экспорта", ex);
+            }
+        }
+
         [RelayCommand]
         private async Task RunPeakHours()
         {
