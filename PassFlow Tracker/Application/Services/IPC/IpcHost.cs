@@ -3,6 +3,7 @@ using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -95,30 +96,47 @@ namespace PassFlow_Tracker.Application.Services.IPC
             {
                 using var stream = client.GetStream();
 
-                byte[] buffer = new byte[4096];
-                int bytes = await stream.ReadAsync(buffer);
+                var lengthBuffer = new byte[4];
+                await ReadExactlyAsync(stream, lengthBuffer, 0, 4);
+                int messageLength = BitConverter.ToInt32(lengthBuffer, 0);
 
-                var json = Encoding.UTF8.GetString(buffer, 0, bytes);
+                const int MaxMessageSize = 10 * 1024 * 1024; // 10 MB
+                if (messageLength <= 0 || messageLength > MaxMessageSize)
+                {
+                    AppLogger.Warning($"[{LogContext}] Некорректная длина сообщения от {clientEndpoint}: {messageLength}");
+                    return;
+                }
+
+                var buffer = new byte[messageLength];
+                await ReadExactlyAsync(stream, buffer, 0, messageLength);
+
+                var json = Encoding.UTF8.GetString(buffer, 0, messageLength);
                 AppLogger.Info($"[{LogContext}] Получен запрос от {clientEndpoint}: {json}");
 
                 var request = JsonSerializer.Deserialize<IpcRequest>(json, JsonSerializerDefaults.SafeOptions);
 
                 if (!ValidateToken(request?.AuthToken))
                 {
-                    AppLogger.Warning($"[IpcHost] Неверный токен от {clientEndpoint}");
+                    AppLogger.Warning($"[{LogContext}] Неверный токен от {clientEndpoint}");
                     var errorResponse = new IpcResponse { Success = false, Message = "Unauthorized" };
                     var errorBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(errorResponse));
                     await stream.WriteAsync(errorBytes);
                     return;
                 }
 
-                var response = await _dispatcher.HandleAsync(request);
+                var response = await _dispatcher.HandleAsync(request!);
 
                 var responseJson = JsonSerializer.Serialize(response, JsonSerializerDefaults.OutputOptions);
                 AppLogger.Info($"[{LogContext}] Отправлен ответ для {clientEndpoint}: {(response.Success ? "успех" : response.Message)}");
 
                 var responseBytes = Encoding.UTF8.GetBytes(responseJson);
-                await stream.WriteAsync(responseBytes);
+
+                var responseLengthBytes = BitConverter.GetBytes(responseBytes.Length);
+                await stream.WriteAsync(responseLengthBytes, 0, 4);
+
+                await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
+
+                AppLogger.Info($"[{LogContext}] Ответ отправлен для {clientEndpoint}: {(response.Success ? "успех" : response.Message)} ({responseBytes.Length} байт)");
             }
             catch (JsonException ex)
             {
@@ -135,9 +153,20 @@ namespace PassFlow_Tracker.Application.Services.IPC
             }
         }
 
+        private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer, int offset, int count)
+        {
+            int totalRead = 0;
+            while (totalRead < count)
+            {
+                int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead);
+                if (read == 0)
+                    throw new EndOfStreamException();
+                totalRead += read;
+            }
+        }
+
         private static bool ValidateToken(string? token)
         {
-            // В продакшене — хеш или JWT
             return token == AppConfig.Ipc.AuthToken;
         }
 

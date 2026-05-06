@@ -305,21 +305,6 @@ namespace PassFlow_Tracker.UI.ViewModels
             } 
         }
         
-        private async Task LoadByIds(string command, string idsJson, Action<string> updateUI)
-        {
-            var response = await _ipc.SendAsync(new IpcRequest
-            {
-                Command = command,
-                Parameters = new() { ["ids"] = idsJson }
-            });
-
-            if (response.Success && response.Data != null)
-            {
-                var json = JsonSerializer.Serialize(response.Data);
-                updateUI(json);
-            }
-        }
-
         [RelayCommand]
         private async Task RunPeakHours()
         {

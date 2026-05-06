@@ -3,6 +3,7 @@ using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
@@ -45,12 +46,26 @@ namespace PassFlow_Tracker.Application.Services.IPC
                 using var stream = client.GetStream();
 
                 var bytes = Encoding.UTF8.GetBytes(requestJson);
-                await stream.WriteAsync(bytes);
 
-                byte[] buffer = new byte[4096];
-                int read = await stream.ReadAsync(buffer);
+                var lengthBytes = BitConverter.GetBytes(bytes.Length);
+                await stream.WriteAsync(lengthBytes, 0, 4);
 
-                var responseJson = Encoding.UTF8.GetString(buffer, 0, read);
+                await stream.WriteAsync(bytes, 0, bytes.Length);
+
+                var responseLengthBuffer = new byte[4];
+                await ReadExactlyAsync(stream, responseLengthBuffer, 0, 4);
+                int responseLength = BitConverter.ToInt32(responseLengthBuffer, 0);
+
+                const int MaxResponseSize = 100 * 1024 * 1024; // 100 MB
+                if (responseLength <= 0 || responseLength > MaxResponseSize)
+                {
+                    throw new InvalidOperationException($"Некорректная длина ответа: {responseLength}");
+                }
+
+                var responseBuffer = new byte[responseLength];
+                await ReadExactlyAsync(stream, responseBuffer, 0, responseLength);
+
+                var responseJson = Encoding.UTF8.GetString(responseBuffer, 0, responseLength);
                 AppLogger.Info($"[{LogContext}] Получен ответ: {(responseJson.Length > 100 ? responseJson[..100] + "..." : responseJson)}");
 
                 var response = JsonSerializer.Deserialize<IpcResponse>(responseJson, JsonSerializerDefaults.SafeOptions)!;
@@ -79,6 +94,18 @@ namespace PassFlow_Tracker.Application.Services.IPC
                     Success = false,
                     Message = $"IPC error: {ex.Message}"
                 };
+            }
+        }
+
+        private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer, int offset, int count)
+        {
+            int totalRead = 0;
+            while (totalRead < count)
+            {
+                int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead);
+                if (read == 0)
+                    throw new EndOfStreamException("Соединение прервано");
+                totalRead += read;
             }
         }
     }
