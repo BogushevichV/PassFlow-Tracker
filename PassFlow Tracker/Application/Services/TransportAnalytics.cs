@@ -100,42 +100,45 @@ namespace PassFlow_Tracker.Application.Services
             }
         }
 
-        // 3. Рейсы с низкой активностью (Настраиваемый порог)
-        public async Task<List<LowTrip>> GetLowActivityTripsAsync(int threshold = 10)
+        // 3. Рейсы с низкой активностью (фильтр по entered)
+        public async Task<List<TripRow>> GetLowActivityTripsAsync(int threshold = 10)
         {
-            AppLogger.Info($"[{LogContext}] Запрос рейсов с порогом < {threshold}");
+            AppLogger.Info($"[{LogContext}] Запрос рейсов с entered < {threshold}");
             var startTime = DateTime.Now;
 
             try
             {
-                var data = new List<LowTrip>();
+                var data = new List<TripRow>();
                 using var conn = _db.CreateConnection();
                 await conn.OpenAsync();
 
-                // Аналогично убираем параметр и подставляем порог напрямую.
-                // Дополнительно приводим время к часовому поясу Europe/Moscow,
-                // чтобы в .NET оно отображалось так же, как в БД.
-                string sql = @"
-                SELECT t.id,
-                       t.time_from AT TIME ZONE 'Europe/Moscow' AS time_from_local,
-                       t.transported,
-                       dr.unit_name
+                const string sql = @"
+                SELECT dr.unit_name,
+                       t.start_point, t.end_point,
+                       t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
+                       t.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
+                       t.entered, t.exited, t.transported
                 FROM trips t
                 JOIN rounds r ON t.round_id = r.id
                 JOIN daily_records dr ON r.daily_record_id = dr.id
-                WHERE t.transported < @threshold
+                WHERE t.entered < @threshold
                 ORDER BY t.time_from DESC";
 
                 using var cmd = new NpgsqlCommand(sql, conn);
-
                 cmd.Parameters.AddWithValue("@threshold", threshold);
+
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
-                    data.Add(new LowTrip(
-                        (int)rdr["id"],
-                        (DateTime)rdr["time_from_local"],
-                        (int)rdr["transported"],
-                        rdr["unit_name"].ToString()));
+                    data.Add(new TripRow(
+                        rdr["unit_name"].ToString() ?? "",
+                        rdr["start_point"].ToString() ?? "",
+                        rdr["end_point"].ToString() ?? "",
+                        ((DateTime)rdr["tf"]).ToString("dd.MM.yyyy HH:mm"),
+                        ((DateTime)rdr["tt"]).ToString("dd.MM.yyyy HH:mm"),
+                        Convert.ToInt32(rdr["entered"]),
+                        Convert.ToInt32(rdr["exited"]),
+                        Convert.ToInt32(rdr["transported"])
+                    ));
 
                 var duration = (DateTime.Now - startTime).TotalMilliseconds;
                 AppLogger.Info($"[{LogContext}] Рейсы получены за {duration:F0}мс, записей: {data.Count}");
@@ -284,8 +287,8 @@ namespace PassFlow_Tracker.Application.Services
                         rdr["unit_name"].ToString() ?? "",
                         rdr["start_point"].ToString() ?? "",
                         rdr["end_point"].ToString() ?? "",
-                        ((DateTime)rdr["tf"]).ToString("HH:mm"),
-                        ((DateTime)rdr["tt"]).ToString("HH:mm"),
+                        ((DateTime)rdr["tf"]).ToString("dd.MM.yyyy HH:mm"),
+                        ((DateTime)rdr["tt"]).ToString("dd.MM.yyyy HH:mm"),
                         Convert.ToInt32(rdr["entered"]),
                         Convert.ToInt32(rdr["exited"]),
                         Convert.ToInt32(rdr["transported"])
@@ -343,8 +346,8 @@ namespace PassFlow_Tracker.Application.Services
                         rdr["unit_name"].ToString() ?? "",
                         rdr["start_point"].ToString() ?? "",
                         rdr["end_point"].ToString() ?? "",
-                        ((DateTime)rdr["tf"]).ToString("HH:mm"),
-                        ((DateTime)rdr["tt"]).ToString("HH:mm"),
+                        ((DateTime)rdr["tf"]).ToString("dd.MM.yyyy HH:mm"),
+                        ((DateTime)rdr["tt"]).ToString("dd.MM.yyyy HH:mm"),
                         Convert.ToInt32(rdr["entered"]),
                         Convert.ToInt32(rdr["exited"]),
                         Convert.ToInt32(rdr["transported"])
@@ -439,8 +442,8 @@ namespace PassFlow_Tracker.Application.Services
                     {
                         StartPoint  = rdr["r_start"].ToString() ?? "",
                         EndPoint    = rdr["r_end"].ToString() ?? "",
-                        TimeFrom    = ((DateTime)rdr["r_tf"]).ToString("HH:mm"),
-                        TimeTo      = ((DateTime)rdr["r_tt"]).ToString("HH:mm"),
+                        TimeFrom    = ((DateTime)rdr["r_tf"]).ToString("dd.MM.yyyy HH:mm"),
+                        TimeTo      = ((DateTime)rdr["r_tt"]).ToString("dd.MM.yyyy HH:mm"),
                         Entered     = Convert.ToInt32(rdr["r_entered"]),
                         Exited      = Convert.ToInt32(rdr["r_exited"]),
                         Transported = Convert.ToInt32(rdr["r_transported"])
@@ -455,8 +458,8 @@ namespace PassFlow_Tracker.Application.Services
                     {
                         StartPoint  = rdr["t_start"].ToString() ?? "",
                         EndPoint    = rdr["t_end"].ToString() ?? "",
-                        TimeFrom    = ((DateTime)rdr["t_tf"]).ToString("HH:mm"),
-                        TimeTo      = ((DateTime)rdr["t_tt"]).ToString("HH:mm"),
+                        TimeFrom    = ((DateTime)rdr["t_tf"]).ToString("dd.MM.yyyy HH:mm"),
+                        TimeTo      = ((DateTime)rdr["t_tt"]).ToString("dd.MM.yyyy HH:mm"),
                         Entered     = Convert.ToInt32(rdr["t_entered"]),
                         Exited      = Convert.ToInt32(rdr["t_exited"]),
                         Transported = Convert.ToInt32(rdr["t_transported"])
@@ -471,8 +474,8 @@ namespace PassFlow_Tracker.Application.Services
                     StopName    = rdr["stop_name"].ToString() ?? "",
                     IsDuplicate = (bool)rdr["is_duplicate"],
                     IsSkipped   = (bool)rdr["is_skipped"],
-                    TimeFrom    = ((DateTime)rdr["ts_tf"]).ToString("HH:mm"),
-                    TimeTo      = ((DateTime)rdr["ts_tt"]).ToString("HH:mm"),
+                    TimeFrom    = ((DateTime)rdr["ts_tf"]).ToString("dd.MM.yyyy HH:mm"),
+                    TimeTo      = ((DateTime)rdr["ts_tt"]).ToString("dd.MM.yyyy HH:mm"),
                     Entered     = Convert.ToInt32(rdr["ts_entered"]),
                     Exited      = Convert.ToInt32(rdr["ts_exited"]),
                     Transported = Convert.ToInt32(rdr["ts_transported"])
@@ -497,7 +500,7 @@ namespace PassFlow_Tracker.Application.Services
 
             var lows = await GetLowActivityTripsAsync(10);
             Console.WriteLine("\n[Низкая активность (<10)]: ");
-            lows.ForEach(l => Console.WriteLine($"- Рейс #{l.Id} ({l.Unit}): {l.Count} чел. в {l.Time:HH:mm}"));
+            lows.ForEach(l => Console.WriteLine($"- {l.UnitName} {l.StartPoint}→{l.EndPoint}: вошло {l.Entered} в {l.TimeFrom}"));
         }
     }
 }

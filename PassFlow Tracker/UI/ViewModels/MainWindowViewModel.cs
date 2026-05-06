@@ -425,20 +425,29 @@ namespace PassFlow_Tracker.UI.ViewModels
                 if (response.Success && response.Data != null)
                 {
                     var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
-                    var data = JsonSerializer.Deserialize<List<LowTrip>>(json, JsonSerializerDefaults.SafeOptions);
+                    var data = JsonSerializer.Deserialize<List<TripRow>>(json, JsonSerializerDefaults.SafeOptions);
 
-                    TripStops.Clear();
-                    foreach (var d in data)
+                    Trips.Clear();
+                    if (data != null)
                     {
-                        TripStops.Add(new TripStopRowViewModel
+                        foreach (var d in data)
                         {
-                            StopName = $"Рейс {d.Id}",
-                            Transported = d.Count
-                        });
+                            Trips.Add(new TripRowViewModel
+                            {
+                                UnitName = d.UnitName,
+                                StartPoint = d.StartPoint,
+                                EndPoint = d.EndPoint,
+                                TimeFrom = d.TimeFrom,
+                                TimeTo = d.TimeTo,
+                                Entered = d.Entered,
+                                Exited = d.Exited,
+                                Transported = d.Transported
+                            });
+                        }
                     }
 
-                    Status = "Низкая активность";
-                    AppLogger.Info($"[{LogContext}] Низкая активность загружена: {data.Count} записей");
+                    Status = $"Низкая активность: {data?.Count ?? 0} рейсов";
+                    AppLogger.Info($"[{LogContext}] Низкая активность загружена: {data?.Count ?? 0} записей");
                 }
             }
             catch (Exception ex)

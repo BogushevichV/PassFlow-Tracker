@@ -71,7 +71,7 @@ namespace PassFlow_Tracker.Application.Services.IPC
                         }
                         finally
                         {
-                            _connectionLimit.Release(); // ← освобождаем слот
+                            _connectionLimit.Release(); 
                         }
                     });
                 }

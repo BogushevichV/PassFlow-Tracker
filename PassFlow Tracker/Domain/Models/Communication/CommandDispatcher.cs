@@ -145,7 +145,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         private async Task<IpcResponse> GetLowTrips(IpcRequest req)
         {
             int threshold = int.Parse(req.Parameters?["threshold"] ?? "10");
-            AppLogger.Info($"[{LogContext}] Получение рейсов с активностью < {threshold}");
+            AppLogger.Info($"[{LogContext}] Получение рейсов с entered < {threshold}");
 
             var data = await _analytics.GetLowActivityTripsAsync(threshold);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} рейсов с низкой активностью");
