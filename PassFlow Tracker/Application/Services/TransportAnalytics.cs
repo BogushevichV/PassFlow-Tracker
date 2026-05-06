@@ -366,13 +366,16 @@ namespace PassFlow_Tracker.Application.Services
         }
 
         // 8. Все данные иерархически (для вкладки all_data)
-        public async Task<List<AllDataDayDto>> GetAllDataAsync()
+        public async Task<List<AllDataDayDto>> GetAllDataAsync(List<int>? dailyRecordIds = null)
         {
-            using var conn = _db.CreateConnection();
-            await conn.OpenAsync();
+            AppLogger.Info($"[{LogContext}] Запрос всех данных");
+            var startTime = DateTime.Now;
+            try
+            {
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
 
-            // Загружаем все данные одним запросом с JOIN
-            const string sql = @"
+                var sql = @"
                 SELECT
                     dr.id        AS dr_id,
                     dr.unit_name, dr.record_date,
@@ -407,82 +410,103 @@ namespace PassFlow_Tracker.Application.Services
                 FROM daily_records dr
                 JOIN rounds r  ON r.daily_record_id = dr.id
                 JOIN trips  t  ON t.round_id = r.id
-                JOIN trip_stops ts ON ts.trip_id = t.id
-                ORDER BY dr.record_date DESC, r.time_from, t.time_from, ts.stop_number";
+                JOIN trip_stops ts ON ts.trip_id = t.id";
 
-            using var cmd = new NpgsqlCommand(sql, conn);
-            using var rdr = await cmd.ExecuteReaderAsync();
-
-            var days   = new Dictionary<int, AllDataDayDto>();
-            var rounds = new Dictionary<int, AllDataRoundDto>();
-            var trips  = new Dictionary<int, AllDataTripDto>();
-
-            while (await rdr.ReadAsync())
-            {
-                int drId = Convert.ToInt32(rdr["dr_id"]);
-                int rId  = Convert.ToInt32(rdr["r_id"]);
-                int tId  = Convert.ToInt32(rdr["t_id"]);
-
-                if (!days.TryGetValue(drId, out var day))
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
                 {
-                    day = new AllDataDayDto
-                    {
-                        UnitName    = rdr["unit_name"].ToString() ?? "",
-                        RecordDate  = ((DateOnly)rdr["record_date"]).ToString("dd.MM.yyyy"),
-                        Entered     = Convert.ToInt32(rdr["dr_entered"]),
-                        Exited      = Convert.ToInt32(rdr["dr_exited"]),
-                        Transported = Convert.ToInt32(rdr["dr_transported"])
-                    };
-                    days[drId] = day;
+                    sql += " WHERE dr.id = ANY(@ids)";
                 }
 
-                if (!rounds.TryGetValue(rId, out var round))
+                sql += " ORDER BY dr.record_date DESC, r.time_from, t.time_from, ts.stop_number";
+
+                using var cmd = new NpgsqlCommand(sql, conn);
+
+                if (dailyRecordIds != null && dailyRecordIds.Count > 0)
                 {
-                    round = new AllDataRoundDto
-                    {
-                        StartPoint  = rdr["r_start"].ToString() ?? "",
-                        EndPoint    = rdr["r_end"].ToString() ?? "",
-                        TimeFrom    = ((DateTime)rdr["r_tf"]).ToString("dd.MM.yyyy HH:mm"),
-                        TimeTo      = ((DateTime)rdr["r_tt"]).ToString("dd.MM.yyyy HH:mm"),
-                        Entered     = Convert.ToInt32(rdr["r_entered"]),
-                        Exited      = Convert.ToInt32(rdr["r_exited"]),
-                        Transported = Convert.ToInt32(rdr["r_transported"])
-                    };
-                    rounds[rId] = round;
-                    day.Rounds.Add(round);
+                    cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
                 }
 
-                if (!trips.TryGetValue(tId, out var trip))
+                using var rdr = await cmd.ExecuteReaderAsync();
+
+                var days = new Dictionary<int, AllDataDayDto>();
+                var rounds = new Dictionary<int, AllDataRoundDto>();
+                var trips = new Dictionary<int, AllDataTripDto>();
+
+                while (await rdr.ReadAsync())
                 {
-                    trip = new AllDataTripDto
+                    int drId = Convert.ToInt32(rdr["dr_id"]);
+                    int rId = Convert.ToInt32(rdr["r_id"]);
+                    int tId = Convert.ToInt32(rdr["t_id"]);
+
+                    if (!days.TryGetValue(drId, out var day))
                     {
-                        StartPoint  = rdr["t_start"].ToString() ?? "",
-                        EndPoint    = rdr["t_end"].ToString() ?? "",
-                        TimeFrom    = ((DateTime)rdr["t_tf"]).ToString("dd.MM.yyyy HH:mm"),
-                        TimeTo      = ((DateTime)rdr["t_tt"]).ToString("dd.MM.yyyy HH:mm"),
-                        Entered     = Convert.ToInt32(rdr["t_entered"]),
-                        Exited      = Convert.ToInt32(rdr["t_exited"]),
-                        Transported = Convert.ToInt32(rdr["t_transported"])
-                    };
-                    trips[tId] = trip;
-                    round.Trips.Add(trip);
+                        day = new AllDataDayDto
+                        {
+                            UnitName = rdr["unit_name"].ToString() ?? "",
+                            RecordDate = ((DateOnly)rdr["record_date"]).ToString("dd.MM.yyyy"),
+                            Entered = Convert.ToInt32(rdr["dr_entered"]),
+                            Exited = Convert.ToInt32(rdr["dr_exited"]),
+                            Transported = Convert.ToInt32(rdr["dr_transported"])
+                        };
+                        days[drId] = day;
+                    }
+
+                    if (!rounds.TryGetValue(rId, out var round))
+                    {
+                        round = new AllDataRoundDto
+                        {
+                            StartPoint = rdr["r_start"].ToString() ?? "",
+                            EndPoint = rdr["r_end"].ToString() ?? "",
+                            TimeFrom = ((DateTime)rdr["r_tf"]).ToString("dd.MM.yyyy HH:mm"),
+                            TimeTo = ((DateTime)rdr["r_tt"]).ToString("dd.MM.yyyy HH:mm"),
+                            Entered = Convert.ToInt32(rdr["r_entered"]),
+                            Exited = Convert.ToInt32(rdr["r_exited"]),
+                            Transported = Convert.ToInt32(rdr["r_transported"])
+                        };
+                        rounds[rId] = round;
+                        day.Rounds.Add(round);
+                    }
+
+                    if (!trips.TryGetValue(tId, out var trip))
+                    {
+                        trip = new AllDataTripDto
+                        {
+                            StartPoint = rdr["t_start"].ToString() ?? "",
+                            EndPoint = rdr["t_end"].ToString() ?? "",
+                            TimeFrom = ((DateTime)rdr["t_tf"]).ToString("dd.MM.yyyy HH:mm"),
+                            TimeTo = ((DateTime)rdr["t_tt"]).ToString("dd.MM.yyyy HH:mm"),
+                            Entered = Convert.ToInt32(rdr["t_entered"]),
+                            Exited = Convert.ToInt32(rdr["t_exited"]),
+                            Transported = Convert.ToInt32(rdr["t_transported"])
+                        };
+                        trips[tId] = trip;
+                        round.Trips.Add(trip);
+                    }
+
+                    trip.Stops.Add(new AllDataStopDto
+                    {
+                        StopNumber = Convert.ToInt32(rdr["stop_number"]),
+                        StopName = rdr["stop_name"].ToString() ?? "",
+                        IsDuplicate = (bool)rdr["is_duplicate"],
+                        IsSkipped = (bool)rdr["is_skipped"],
+                        TimeFrom = ((DateTime)rdr["ts_tf"]).ToString("dd.MM.yyyy HH:mm"),
+                        TimeTo = ((DateTime)rdr["ts_tt"]).ToString("dd.MM.yyyy HH:mm"),
+                        Entered = Convert.ToInt32(rdr["ts_entered"]),
+                        Exited = Convert.ToInt32(rdr["ts_exited"]),
+                        Transported = Convert.ToInt32(rdr["ts_transported"])
+                    });
                 }
 
-                trip.Stops.Add(new AllDataStopDto
-                {
-                    StopNumber  = Convert.ToInt32(rdr["stop_number"]),
-                    StopName    = rdr["stop_name"].ToString() ?? "",
-                    IsDuplicate = (bool)rdr["is_duplicate"],
-                    IsSkipped   = (bool)rdr["is_skipped"],
-                    TimeFrom    = ((DateTime)rdr["ts_tf"]).ToString("dd.MM.yyyy HH:mm"),
-                    TimeTo      = ((DateTime)rdr["ts_tt"]).ToString("dd.MM.yyyy HH:mm"),
-                    Entered     = Convert.ToInt32(rdr["ts_entered"]),
-                    Exited      = Convert.ToInt32(rdr["ts_exited"]),
-                    Transported = Convert.ToInt32(rdr["ts_transported"])
-                });
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Все данные получены за {duration:F0}мс, записей: {days.Count}");
+
+                return new List<AllDataDayDto>(days.Values);
             }
-
-            return new List<AllDataDayDto>(days.Values);
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения всех данных", ex);
+                throw;
+            }
         }
 
         public async Task PrintReportAsync()

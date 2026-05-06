@@ -476,83 +476,81 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
+        [RelayCommand]
         private async Task LoadAllData()
         {
             AppLogger.Info($"[{LogContext}] Загрузка всех данных (дерево)");
             Status = "Загрузка всех данных...";
+
             try
             {
-                var response = await _ipc.SendAsync(new IpcRequest { Command = "all_data" });
+                await LoadDataToCollection(
+                    command: "all_data",
+                    idsJson: null,
+                    onSuccess: json =>
+                    {
+                        var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
 
-                if (response.Success && response.Data != null)
-                {
-                    var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
-                    var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
-
-                    AllDataTree.Clear();
-                    if (data != null)
-                        foreach (var day in data)
-                        {
-                            var dayNode = new DayNodeViewModel
+                        AllDataTree.Clear();
+                        if (data != null)
+                            foreach (var day in data)
                             {
-                                UnitName    = day.UnitName,
-                                RecordDate  = day.RecordDate,
-                                Entered     = day.Entered,
-                                Exited      = day.Exited,
-                                Transported = day.Transported
-                            };
-                            foreach (var round in day.Rounds)
-                            {
-                                var roundNode = new RoundNodeViewModel
+                                var dayNode = new DayNodeViewModel
                                 {
-                                    StartPoint  = round.StartPoint,
-                                    EndPoint    = round.EndPoint,
-                                    TimeFrom    = round.TimeFrom,
-                                    TimeTo      = round.TimeTo,
-                                    Entered     = round.Entered,
-                                    Exited      = round.Exited,
-                                    Transported = round.Transported
+                                    UnitName = day.UnitName,
+                                    RecordDate = day.RecordDate,
+                                    Entered = day.Entered,
+                                    Exited = day.Exited,
+                                    Transported = day.Transported
                                 };
-                                foreach (var trip in round.Trips)
+                                foreach (var round in day.Rounds)
                                 {
-                                    var tripNode = new TripNodeViewModel
+                                    var roundNode = new RoundNodeViewModel
                                     {
-                                        StartPoint  = trip.StartPoint,
-                                        EndPoint    = trip.EndPoint,
-                                        TimeFrom    = trip.TimeFrom,
-                                        TimeTo      = trip.TimeTo,
-                                        Entered     = trip.Entered,
-                                        Exited      = trip.Exited,
-                                        Transported = trip.Transported
+                                        StartPoint = round.StartPoint,
+                                        EndPoint = round.EndPoint,
+                                        TimeFrom = round.TimeFrom,
+                                        TimeTo = round.TimeTo,
+                                        Entered = round.Entered,
+                                        Exited = round.Exited,
+                                        Transported = round.Transported
                                     };
-                                    foreach (var stop in trip.Stops)
-                                        tripNode.Stops.Add(new StopNodeViewModel
+                                    foreach (var trip in round.Trips)
+                                    {
+                                        var tripNode = new TripNodeViewModel
                                         {
-                                            StopNumber  = stop.StopNumber,
-                                            StopName    = stop.StopName,
-                                            IsDuplicate = stop.IsDuplicate,
-                                            IsSkipped   = stop.IsSkipped,
-                                            TimeFrom    = stop.TimeFrom,
-                                            TimeTo      = stop.TimeTo,
-                                            Entered     = stop.Entered,
-                                            Exited      = stop.Exited,
-                                            Transported = stop.Transported
-                                        });
-                                    roundNode.Trips.Add(tripNode);
+                                            StartPoint = trip.StartPoint,
+                                            EndPoint = trip.EndPoint,
+                                            TimeFrom = trip.TimeFrom,
+                                            TimeTo = trip.TimeTo,
+                                            Entered = trip.Entered,
+                                            Exited = trip.Exited,
+                                            Transported = trip.Transported
+                                        };
+                                        foreach (var stop in trip.Stops)
+                                            tripNode.Stops.Add(new StopNodeViewModel
+                                            {
+                                                StopNumber = stop.StopNumber,
+                                                StopName = stop.StopName,
+                                                IsDuplicate = stop.IsDuplicate,
+                                                IsSkipped = stop.IsSkipped,
+                                                TimeFrom = stop.TimeFrom,
+                                                TimeTo = stop.TimeTo,
+                                                Entered = stop.Entered,
+                                                Exited = stop.Exited,
+                                                Transported = stop.Transported
+                                            });
+                                        roundNode.Trips.Add(tripNode);
+                                    }
+                                    dayNode.Rounds.Add(roundNode);
                                 }
-                                dayNode.Rounds.Add(roundNode);
+                                AllDataTree.Add(dayNode);
                             }
-                            AllDataTree.Add(dayNode);
-                        }
 
-                    Status = $"Все данные: {data?.Count ?? 0} дней";
-                    AppLogger.Info($"[{LogContext}] Дерево загружено: {data?.Count ?? 0} дней");
-                }
-                else
-                {
-                    Status = $"Ошибка: {response.Message}";
-                    AppLogger.Error($"[{LogContext}] Ошибка загрузки дерева: {response.Message}");
-                }
+                        Status = $"Все данные: {data?.Count ?? 0} дней";
+                        AppLogger.Info($"[{LogContext}] Дерево загружено: {data?.Count ?? 0} дней");
+                    },
+                    errorMessage: "Ошибка загрузки дерева");
             }
             catch (Exception ex)
             {
@@ -561,6 +559,7 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
+        [RelayCommand]
         private async Task LoadDailyRecords()        {
             AppLogger.Info($"[{LogContext}] Загрузка дней");
             Status = "Загрузка дней...";
@@ -592,6 +591,7 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
+        [RelayCommand]
         private async Task LoadRounds()        
         {
             AppLogger.Info($"[{LogContext}] Загрузка кругов");
@@ -674,7 +674,6 @@ namespace PassFlow_Tracker.UI.ViewModels
                 switch (ActiveTab)
                 {
                     case "trip_stops":
-                    case "all_data":
                         await LoadDataToCollection(
                             command: "trip_stops",
                             idsJson: idsJson,
@@ -693,6 +692,75 @@ namespace PassFlow_Tracker.UI.ViewModels
                                 Status = $"Импортировано остановок: {data?.Count ?? 0}";
                             },
                             errorMessage: "Ошибка загрузки импортированных остановок");
+                        break;
+
+                    case "all_data":
+                        await LoadDataToCollection(
+                            command: "all_data",
+                            idsJson: idsJson,
+                            onSuccess: json =>
+                            {
+                                var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
+
+                                AllDataTree.Clear();
+                                if (data != null)
+                                    foreach (var day in data)
+                                    {
+                                        var dayNode = new DayNodeViewModel
+                                        {
+                                            UnitName = day.UnitName,
+                                            RecordDate = day.RecordDate,
+                                            Entered = day.Entered,
+                                            Exited = day.Exited,
+                                            Transported = day.Transported
+                                        };
+                                        foreach (var round in day.Rounds)
+                                        {
+                                            var roundNode = new RoundNodeViewModel
+                                            {
+                                                StartPoint = round.StartPoint,
+                                                EndPoint = round.EndPoint,
+                                                TimeFrom = round.TimeFrom,
+                                                TimeTo = round.TimeTo,
+                                                Entered = round.Entered,
+                                                Exited = round.Exited,
+                                                Transported = round.Transported
+                                            };
+                                            foreach (var trip in round.Trips)
+                                            {
+                                                var tripNode = new TripNodeViewModel
+                                                {
+                                                    StartPoint = trip.StartPoint,
+                                                    EndPoint = trip.EndPoint,
+                                                    TimeFrom = trip.TimeFrom,
+                                                    TimeTo = trip.TimeTo,
+                                                    Entered = trip.Entered,
+                                                    Exited = trip.Exited,
+                                                    Transported = trip.Transported
+                                                };
+                                                foreach (var stop in trip.Stops)
+                                                    tripNode.Stops.Add(new StopNodeViewModel
+                                                    {
+                                                        StopNumber = stop.StopNumber,
+                                                        StopName = stop.StopName,
+                                                        IsDuplicate = stop.IsDuplicate,
+                                                        IsSkipped = stop.IsSkipped,
+                                                        TimeFrom = stop.TimeFrom,
+                                                        TimeTo = stop.TimeTo,
+                                                        Entered = stop.Entered,
+                                                        Exited = stop.Exited,
+                                                        Transported = stop.Transported
+                                                    });
+                                                roundNode.Trips.Add(tripNode);
+                                            }
+                                            dayNode.Rounds.Add(roundNode);
+                                        }
+                                        AllDataTree.Add(dayNode);
+                                    }
+
+                                Status = $"Импортировано (дерево): {data?.Count ?? 0} дней";
+                            },
+                            errorMessage: "Ошибка загрузки импортированного дерева");
                         break;
 
                     case "trips":

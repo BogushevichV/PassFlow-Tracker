@@ -1,4 +1,5 @@
-﻿using PassFlow_Tracker.Application.Services;
+﻿using DocumentFormat.OpenXml.Drawing;
+using PassFlow_Tracker.Application.Services;
 using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
@@ -45,7 +46,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                     "rounds"         => await GetRounds(request),
                     "trips"          => await GetTrips(request),
                     "daily_records"  => await GetDailyRecords(request),
-                    "all_data"       => await GetAllData(),
+                    "all_data"       => await GetAllData(request),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
 
@@ -191,10 +192,11 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             return new IpcResponse { Success = true, Data = data };
         }
 
-        private async Task<IpcResponse> GetAllData()
+        private async Task<IpcResponse> GetAllData(IpcRequest req)
         {
+            var ids = DeserializeIds(req);
             AppLogger.Info($"[{LogContext}] Получение всех данных (дерево)");
-            var data = await _analytics.GetAllDataAsync();
+            var data = await _analytics.GetAllDataAsync(ids);
             AppLogger.Info($"[{LogContext}] Загружено {data.Count} дней");
             return new IpcResponse { Success = true, Data = data };
         }

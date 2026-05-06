@@ -7,6 +7,9 @@ APP_EXECUTABLE="PassFlow Tracker"
 
 BUILD_DIR="${PACKAGE_NAME}_${VERSION}"
 
+echo "=== 0. Восстановление NuGet-пакетов ==="
+dotnet restore
+
 dotnet clean -c Release
 rm -rf bin/ obj/ publish/
 

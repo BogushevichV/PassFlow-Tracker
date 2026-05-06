@@ -31,13 +31,13 @@ namespace PassFlow_Tracker
         {
             try
             {
-                AppLogger.Info($"[{LogContext}] Запуск приложения");
+                AppLogger.Info($"[{LogContext}] Р—Р°РїСѓСЃРє РїСЂРёР»РѕР¶РµРЅРёСЏ");
 
                 var db = new DbConnectionFactory();
                 var json = new JsonImportService(db);
                 var analytics = new TransportAnalytics(db);
 
-                AppLogger.Info($"[{LogContext}] Сервисы инициализированы");
+                AppLogger.Info($"[{LogContext}] РЎРµСЂРІРёСЃС‹ РёРЅРёС†РёР°Р»РёР·РёСЂРѕРІР°РЅС‹");
 
                 var dispatcher = new CommandDispatcher(json, analytics);
                 _IpcHost = new IpcHost(dispatcher);
@@ -51,21 +51,21 @@ namespace PassFlow_Tracker
 
                     desktop.Exit += (s, e) =>
                     {
-                        AppLogger.Info($"[{LogContext}] Приложение завершается, останавливаем IPC-хост...");
+                        AppLogger.Info($"[{LogContext}] РџСЂРёР»РѕР¶РµРЅРёРµ Р·Р°РІРµСЂС€Р°РµС‚СЃСЏ, РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРј IPC-С…РѕСЃС‚...");
                         _IpcHost?.Stop();
-                        AppLogger.Info($"[{LogContext}] IPC-хост остановлен");
+                        AppLogger.Info($"[{LogContext}] IPC-С…РѕСЃС‚ РѕСЃС‚Р°РЅРѕРІР»РµРЅ");
                     };
 
                     DisableAvaloniaDataAnnotationValidation();
                     desktop.MainWindow = new MainWindow();
                 }
 
-                AppLogger.Info($"[{LogContext}] Приложение успешно запущено");
+                AppLogger.Info($"[{LogContext}] РџСЂРёР»РѕР¶РµРЅРёРµ СѓСЃРїРµС€РЅРѕ Р·Р°РїСѓС‰РµРЅРѕ");
                 base.OnFrameworkInitializationCompleted();
             }
             catch (Exception ex)
             {
-                AppLogger.Error($"[{LogContext}] Критическая ошибка при запуске приложения", ex);
+                AppLogger.Error($"[{LogContext}] РљСЂРёС‚РёС‡РµСЃРєР°СЏ РѕС€РёР±РєР° РїСЂРё Р·Р°РїСѓСЃРєРµ РїСЂРёР»РѕР¶РµРЅРёСЏ", ex);
                 throw;
             }
         }
