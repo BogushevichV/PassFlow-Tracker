@@ -17,6 +17,18 @@ namespace PassFlow_Tracker.Domain.Models
         int Exited,
         int Transported);
 
+    // Режим агрегации для топ-остановок
+    public enum TopStopsMode { PerRecord, PerDay, AllTime }
+
+    // Расширенная запись для топ-остановок с датой/периодом
+    public record TopStopRow(
+        int StopNumber,
+        string StopName,
+        string Label,       // название + дата/период для отображения
+        int Entered,
+        int Exited,
+        int Transported);
+
     public record DailyRecordRow(
         string UnitName,
         string RecordDate,

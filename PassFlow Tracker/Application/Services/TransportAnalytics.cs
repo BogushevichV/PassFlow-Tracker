@@ -163,7 +163,6 @@ namespace PassFlow_Tracker.Application.Services
                 using var conn = _db.CreateConnection();
                 await conn.OpenAsync();
 
-                // entered, exited, transported — суммируем по всем проходам через остановку
                 string sql = @"
                 SELECT ts.stop_number, ts.stop_name,
                        SUM(ts.entered)     AS total_entered,
@@ -175,18 +174,13 @@ namespace PassFlow_Tracker.Application.Services
                 WHERE ts.is_duplicate = FALSE";
 
                 if (dailyRecordIds != null && dailyRecordIds.Count > 0)
-                {
                     sql += " AND r.daily_record_id = ANY(@ids)";
-                }
 
                 sql += " GROUP BY ts.stop_number, ts.stop_name ORDER BY ts.stop_number";
 
                 using var cmd = new NpgsqlCommand(sql, conn);
-
                 if (dailyRecordIds != null && dailyRecordIds.Count > 0)
-                {
                     cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
-                }
 
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
@@ -198,15 +192,149 @@ namespace PassFlow_Tracker.Application.Services
                         Convert.ToInt32(rdr["total_transported"])
                     ));
 
-
                 var duration = (DateTime.Now - startTime).TotalMilliseconds;
                 AppLogger.Info($"[{LogContext}] Остановки получены за {duration:F0}мс, записей: {data.Count}");
-
                 return data;
             }
             catch (Exception ex)
             {
                 AppLogger.Error($"[{LogContext}] Ошибка получения остановок", ex);
+                throw;
+            }
+        }
+
+        // 4b. Топ-N остановок с режимом агрегации
+        public async Task<List<TopStopRow>> GetTopStopsDetailedAsync(
+            int limit, TopStopsMode mode, List<int>? dailyRecordIds = null)
+        {
+            AppLogger.Info($"[{LogContext}] Топ-{limit} остановок, режим={mode}");
+            var startTime = DateTime.Now;
+
+            try
+            {
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                string sql;
+                NpgsqlCommand cmd;
+
+                switch (mode)
+                {
+                    // Каждая запись trip_stop отдельно
+                    case TopStopsMode.PerRecord:
+                        sql = @"
+                        SELECT ts.stop_number, ts.stop_name,
+                               ts.entered, ts.exited, ts.transported,
+                               ts.time_from AT TIME ZONE 'Europe/Moscow' AS ts_tf,
+                               ts.time_to   AT TIME ZONE 'Europe/Moscow' AS ts_tt
+                        FROM trip_stops ts
+                        JOIN trips t ON ts.trip_id = t.id
+                        JOIN rounds r ON t.round_id = r.id
+                        WHERE ts.is_duplicate = FALSE";
+                        if (dailyRecordIds?.Count > 0) sql += " AND r.daily_record_id = ANY(@ids)";
+                        sql += @"
+                        ORDER BY (ts.entered + ts.exited) DESC
+                        LIMIT @limit";
+                        cmd = new NpgsqlCommand(sql, conn);
+                        if (dailyRecordIds?.Count > 0)
+                            cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
+                        cmd.Parameters.AddWithValue("@limit", limit);
+                        break;
+
+                    // Суммировать по остановке за каждый день
+                    case TopStopsMode.PerDay:
+                        sql = @"
+                        SELECT ts.stop_number, ts.stop_name,
+                               dr.record_date,
+                               SUM(ts.entered)     AS total_entered,
+                               SUM(ts.exited)      AS total_exited,
+                               SUM(ts.transported) AS total_transported
+                        FROM trip_stops ts
+                        JOIN trips t ON ts.trip_id = t.id
+                        JOIN rounds r ON t.round_id = r.id
+                        JOIN daily_records dr ON r.daily_record_id = dr.id
+                        WHERE ts.is_duplicate = FALSE";
+                        if (dailyRecordIds?.Count > 0) sql += " AND dr.id = ANY(@ids)";
+                        sql += @"
+                        GROUP BY ts.stop_number, ts.stop_name, dr.record_date
+                        ORDER BY (SUM(ts.entered) + SUM(ts.exited)) DESC
+                        LIMIT @limit";
+                        cmd = new NpgsqlCommand(sql, conn);
+                        if (dailyRecordIds?.Count > 0)
+                            cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
+                        cmd.Parameters.AddWithValue("@limit", limit);
+                        break;
+
+                    // Суммировать по остановке за всё время
+                    default: // AllTime
+                        sql = @"
+                        SELECT ts.stop_number, ts.stop_name,
+                               MIN(dr.record_date) AS date_from,
+                               MAX(dr.record_date) AS date_to,
+                               SUM(ts.entered)     AS total_entered,
+                               SUM(ts.exited)      AS total_exited,
+                               SUM(ts.transported) AS total_transported
+                        FROM trip_stops ts
+                        JOIN trips t ON ts.trip_id = t.id
+                        JOIN rounds r ON t.round_id = r.id
+                        JOIN daily_records dr ON r.daily_record_id = dr.id
+                        WHERE ts.is_duplicate = FALSE";
+                        if (dailyRecordIds?.Count > 0) sql += " AND dr.id = ANY(@ids)";
+                        sql += @"
+                        GROUP BY ts.stop_number, ts.stop_name
+                        ORDER BY (SUM(ts.entered) + SUM(ts.exited)) DESC
+                        LIMIT @limit";
+                        cmd = new NpgsqlCommand(sql, conn);
+                        if (dailyRecordIds?.Count > 0)
+                            cmd.Parameters.AddWithValue("@ids", dailyRecordIds.ToArray());
+                        cmd.Parameters.AddWithValue("@limit", limit);
+                        break;
+                }
+
+                var data = new List<TopStopRow>();
+                using var rdr = await cmd.ExecuteReaderAsync();
+
+                while (await rdr.ReadAsync())
+                {
+                    int num  = Convert.ToInt32(rdr["stop_number"]);
+                    string name = rdr["stop_name"].ToString() ?? "";
+
+                    int entered, exited, transported;
+                    string label;
+
+                    if (mode == TopStopsMode.PerRecord)
+                    {
+                        entered     = Convert.ToInt32(rdr["entered"]);
+                        exited      = Convert.ToInt32(rdr["exited"]);
+                        transported = Convert.ToInt32(rdr["transported"]);
+                        label = $"{name}  {((DateTime)rdr["ts_tf"]).ToString("dd.MM.yyyy HH:mm")}–{((DateTime)rdr["ts_tt"]).ToString("HH:mm")}";
+                    }
+                    else if (mode == TopStopsMode.PerDay)
+                    {
+                        entered     = Convert.ToInt32(rdr["total_entered"]);
+                        exited      = Convert.ToInt32(rdr["total_exited"]);
+                        transported = Convert.ToInt32(rdr["total_transported"]);
+                        label = $"{name}  {((DateOnly)rdr["record_date"]).ToString("dd.MM.yyyy")}";
+                    }
+                    else // AllTime
+                    {
+                        entered     = Convert.ToInt32(rdr["total_entered"]);
+                        exited      = Convert.ToInt32(rdr["total_exited"]);
+                        transported = Convert.ToInt32(rdr["total_transported"]);
+                        label = $"{name}  {((DateOnly)rdr["date_from"]).ToString("dd.MM.yyyy")}–{((DateOnly)rdr["date_to"]).ToString("dd.MM.yyyy")}";
+                    }
+
+                    data.Add(new TopStopRow(num, name, label, entered, exited, transported));
+                }
+
+                cmd.Dispose();
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Топ-{limit} получен за {duration:F0}мс, записей: {data.Count}");
+                return data;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения топ остановок (детально)", ex);
                 throw;
             }
         }

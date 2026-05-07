@@ -10,6 +10,7 @@ using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Database;
 using PassFlow_Tracker.Infrastructure.Logging;
+using PassFlow_Tracker.UI.Views;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
@@ -468,7 +469,17 @@ namespace PassFlow_Tracker.UI.ViewModels
         [RelayCommand]
         private async Task RunTopStops()
         {
-            AppLogger.Info($"[{LogContext}] Запрос: топ-{TopN} остановок");
+            AppLogger.Info($"[{LogContext}] Запрос: топ-{TopN} остановок — открытие диалога");
+
+            // Показываем диалог выбора режима
+            var dialog = new TopStopsDialog();
+            var result = await dialog.ShowDialog<TopStopsMode?>(MainWindow);
+
+            if (result == null)
+            {
+                AppLogger.Info($"[{LogContext}] Топ остановок: отменено пользователем");
+                return;
+            }
 
             ActiveTab = "trip_stops";
 
@@ -476,30 +487,48 @@ namespace PassFlow_Tracker.UI.ViewModels
             {
                 var response = await _ipc.SendAsync(new IpcRequest
                 {
-                    Command = "top_stops",
+                    Command = "top_stops_detailed",
                     Parameters = new()
                     {
-                        ["limit"] = TopN.ToString()
+                        ["limit"] = TopN.ToString(),
+                        ["mode"]  = result.Value.ToString()
                     }
                 });
 
                 if (response.Success && response.Data != null)
                 {
                     var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
-                    var data = JsonSerializer.Deserialize<List<StopLoad>>(json, JsonSerializerDefaults.SafeOptions);
+                    var data = JsonSerializer.Deserialize<List<TopStopRow>>(json, JsonSerializerDefaults.SafeOptions);
 
                     TripStops.Clear();
-
-                    foreach (var d in data)
+                    if (data != null)
                     {
-                        TripStops.Add(new TripStopRowViewModel
+                        foreach (var d in data)
                         {
-                            StopName = d.Name,
-                            Transported = (int)d.Load
-                        });
+                            TripStops.Add(new TripStopRowViewModel
+                            {
+                                StopNumber  = d.StopNumber,
+                                StopName    = d.StopName,
+                                Label       = d.Label,
+                                Entered     = d.Entered,
+                                Exited      = d.Exited,
+                                Transported = d.Transported
+                            });
+                        }
                     }
-                    Status = $"Топ-{TopN} остановок";
-                    AppLogger.Info($"[{LogContext}] Топ-{TopN} остановок загружен: {data.Count} записей");
+
+                    var modeLabel = result.Value switch
+                    {
+                        TopStopsMode.PerDay    => "за день",
+                        TopStopsMode.AllTime   => "за всё время",
+                        _                      => "по записям"
+                    };
+                    Status = $"Топ-{TopN} остановок ({modeLabel}): {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Топ-{TopN} загружен: {data?.Count ?? 0} записей");
+                }
+                else
+                {
+                    Status = $"Ошибка: {response.Message}";
                 }
             }
             catch (Exception ex)
@@ -579,10 +608,11 @@ namespace PassFlow_Tracker.UI.ViewModels
                     TripStops.Clear();
                     data?.ForEach(d => TripStops.Add(new TripStopRowViewModel
                     {
-                        StopNumber = d.StopNumber,
-                        StopName = d.StopName,
-                        Entered = d.Entered,
-                        Exited = d.Exited,
+                        StopNumber  = d.StopNumber,
+                        StopName    = d.StopName,
+                        Label       = d.StopName,   // в обычном режиме Label = название
+                        Entered     = d.Entered,
+                        Exited      = d.Exited,
                         Transported = d.Transported
                     }));
                     Status = $"Остановки: {data?.Count ?? 0}";

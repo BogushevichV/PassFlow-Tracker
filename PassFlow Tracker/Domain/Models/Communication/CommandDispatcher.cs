@@ -1,5 +1,6 @@
 ﻿using DocumentFormat.OpenXml.Drawing;
 using PassFlow_Tracker.Application.Services;
+using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
@@ -38,15 +39,16 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             {
                 var response = request.Command switch
                 {
-                    "import_json"    => await ImportJson(request),
-                    "peak_hours"     => await GetPeakHours(),
-                    "top_stops"      => await GetTopStops(request),
-                    "low_activity"   => await GetLowTrips(request),
-                    "trip_stops"     => await GetTripStops(request),
-                    "rounds"         => await GetRounds(request),
-                    "trips"          => await GetTrips(request),
-                    "daily_records"  => await GetDailyRecords(request),
-                    "all_data"       => await GetAllData(request),
+                    "import_json"         => await ImportJson(request),
+                    "peak_hours"          => await GetPeakHours(),
+                    "top_stops"           => await GetTopStops(request),
+                    "top_stops_detailed"  => await GetTopStopsDetailed(request),
+                    "low_activity"        => await GetLowTrips(request),
+                    "trip_stops"          => await GetTripStops(request),
+                    "rounds"              => await GetRounds(request),
+                    "trips"               => await GetTrips(request),
+                    "daily_records"       => await GetDailyRecords(request),
+                    "all_data"            => await GetAllData(request),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
 
@@ -143,6 +145,20 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             return new IpcResponse { Success = true, Data = data };
         }
 
+        private async Task<IpcResponse> GetTopStopsDetailed(IpcRequest req)
+        {
+            int limit = int.Parse(req.Parameters?["limit"] ?? "10");
+            var modeStr = req.Parameters?["mode"] ?? "PerRecord";
+            var mode = Enum.Parse<TopStopsMode>(modeStr);
+            var ids = DeserializeIds(req);
+
+            AppLogger.Info($"[{LogContext}] Топ-{limit} остановок, режим={mode}");
+            var data = await _analytics.GetTopStopsDetailedAsync(limit, mode, ids);
+            AppLogger.Info($"[{LogContext}] Найдено {data.Count} записей");
+
+            return new IpcResponse { Success = true, Data = data };
+        }
+
         private async Task<IpcResponse> GetLowTrips(IpcRequest req)
         {
             int threshold = int.Parse(req.Parameters?["threshold"] ?? "10");
@@ -203,7 +219,8 @@ namespace PassFlow_Tracker.Domain.Models.Communication
 
         private List<int>? DeserializeIds(IpcRequest req)
         {
-            var idsJson = req.Parameters?["ids"];
+            if (req.Parameters == null || !req.Parameters.TryGetValue("ids", out var idsJson))
+                return null;
             if (string.IsNullOrEmpty(idsJson)) return null;
 
             return JsonSerializer.Deserialize<List<int>>(idsJson);

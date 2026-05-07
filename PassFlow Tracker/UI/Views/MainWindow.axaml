@@ -769,7 +769,7 @@
                       VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="№ Остановки"       Binding="{ReflectionBinding StopNumber}" Width="Auto"/>
-                <DataGridTextColumn Header="Название остановки" Binding="{ReflectionBinding StopName}"   Width="*"/>
+                <DataGridTextColumn Header="Название / Период"  Binding="{ReflectionBinding Label}"      Width="*"/>
                 <DataGridTextColumn Header="Вошло"             Binding="{ReflectionBinding Entered}"    Width="Auto"/>
                 <DataGridTextColumn Header="Вышло"             Binding="{ReflectionBinding Exited}"     Width="Auto"/>
                 <DataGridTextColumn Header="Перевезено ↕"      Binding="{ReflectionBinding Transported}" Width="Auto"/>
