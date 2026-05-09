@@ -11,6 +11,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+using JsonSerializerDefaults = PassFlow_Tracker.Infrastructure.Serialization.JsonSerializerDefaults;
+
 namespace PassFlow_Tracker.Domain.Models.Communication
 {
     public class CommandDispatcher
@@ -39,16 +41,20 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             {
                 var response = request.Command switch
                 {
-                    "import_json"         => await ImportJson(request),
-                    "peak_hours"          => await GetPeakHours(),
-                    "top_stops"           => await GetTopStops(request),
-                    "top_stops_detailed"  => await GetTopStopsDetailed(request),
-                    "low_activity"        => await GetLowTrips(request),
-                    "trip_stops"          => await GetTripStops(request),
-                    "rounds"              => await GetRounds(request),
-                    "trips"               => await GetTrips(request),
-                    "daily_records"       => await GetDailyRecords(request),
-                    "all_data"            => await GetAllData(request),
+                    "import_json" => await ImportJson(request),
+                    "peak_hours" => await GetPeakHours(),
+                    "top_stops" => await GetTopStops(request),
+                    "top_stops_detailed" => await GetTopStopsDetailed(request),
+                    "low_activity" => await GetLowTrips(request),
+                    "trip_stops" => await GetTripStops(request),
+                    "rounds" => await GetRounds(request),
+                    "trips" => await GetTrips(request),
+                    "daily_records" => await GetDailyRecords(request),
+                    "all_data" => await GetAllData(request),
+                    "update_trip_stops" => await UpdateTripStops(request),
+                    "update_trips" => await UpdateTrips(request),
+                    "update_rounds" => await UpdateRounds(request),
+                    "update_daily_records" => await UpdateDailyRecords(request),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
 
@@ -93,7 +99,6 @@ namespace PassFlow_Tracker.Domain.Models.Communication
 
             try
             {
-                // Вызываем импорт и получаем ID добавленных записей
                 var importedIds = await _json.ImportAsync(path);
 
                 AppLogger.Info($"[{LogContext}] JSON импортирован успешно. Записей: {importedIds.Count}");
@@ -102,7 +107,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                 {
                     Success = true,
                     Message = $"Импортировано записей: {importedIds.Count}",
-                    Data = importedIds  // ← List<int> — ID новых daily_records
+                    Data = importedIds
                 };
             }
             catch (FileNotFoundException)
@@ -224,6 +229,74 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             if (string.IsNullOrEmpty(idsJson)) return null;
 
             return JsonSerializer.Deserialize<List<int>>(idsJson);
+        }
+
+        private async Task<IpcResponse> UpdateTripStops(IpcRequest req)
+        {
+            var json = req.Parameters?["data"];
+            if (string.IsNullOrEmpty(json))
+                return new IpcResponse { Success = false, Message = "No data" };
+
+            var data = JsonSerializer.Deserialize<List<TripStopUpdateDto>>(json, JsonSerializerDefaults.SafeOptions);
+            if (data == null || data.Count == 0)
+                return new IpcResponse { Success = false, Message = "Empty data" };
+
+            AppLogger.Info($"[{LogContext}] Обновление остановок: {data.Count} записей");
+            await _analytics.UpdateTripStopsAsync(data);
+            AppLogger.Info($"[{LogContext}] Остановки обновлены");
+
+            return new IpcResponse { Success = true, Message = $"Обновлено остановок: {data.Count}" };
+        }
+
+        private async Task<IpcResponse> UpdateTrips(IpcRequest req)
+        {
+            var json = req.Parameters?["data"];
+            if (string.IsNullOrEmpty(json))
+                return new IpcResponse { Success = false, Message = "No data" };
+
+            var data = JsonSerializer.Deserialize<List<TripUpdateDto>>(json, JsonSerializerDefaults.SafeOptions);
+            if (data == null || data.Count == 0)
+                return new IpcResponse { Success = false, Message = "Empty data" };
+
+            AppLogger.Info($"[{LogContext}] Обновление рейсов: {data.Count} записей");
+            await _analytics.UpdateTripsAsync(data);
+            AppLogger.Info($"[{LogContext}] Рейсы обновлены");
+
+            return new IpcResponse { Success = true, Message = $"Обновлено рейсов: {data.Count}" };
+        }
+
+        private async Task<IpcResponse> UpdateRounds(IpcRequest req)
+        {
+            var json = req.Parameters?["data"];
+            if (string.IsNullOrEmpty(json))
+                return new IpcResponse { Success = false, Message = "No data" };
+
+            var data = JsonSerializer.Deserialize<List<RoundUpdateDto>>(json, JsonSerializerDefaults.SafeOptions);
+            if (data == null || data.Count == 0)
+                return new IpcResponse { Success = false, Message = "Empty data" };
+
+            AppLogger.Info($"[{LogContext}] Обновление кругов: {data.Count} записей");
+            await _analytics.UpdateRoundsAsync(data);
+            AppLogger.Info($"[{LogContext}] Круги обновлены");
+
+            return new IpcResponse { Success = true, Message = $"Обновлено кругов: {data.Count}" };
+        }
+
+        private async Task<IpcResponse> UpdateDailyRecords(IpcRequest req)
+        {
+            var json = req.Parameters?["data"];
+            if (string.IsNullOrEmpty(json))
+                return new IpcResponse { Success = false, Message = "No data" };
+
+            var data = JsonSerializer.Deserialize<List<DailyRecordUpdateDto>>(json, JsonSerializerDefaults.SafeOptions);
+            if (data == null || data.Count == 0)
+                return new IpcResponse { Success = false, Message = "Empty data" };
+
+            AppLogger.Info($"[{LogContext}] Обновление дней: {data.Count} записей");
+            await _analytics.UpdateDailyRecordsAsync(data);
+            AppLogger.Info($"[{LogContext}] Дни обновлены");
+
+            return new IpcResponse { Success = true, Message = $"Обновлено дней: {data.Count}" };
         }
     }
 }
