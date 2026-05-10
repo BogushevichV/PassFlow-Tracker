@@ -9,11 +9,35 @@ namespace PassFlow_Tracker.Domain.Models
     // --- Вложенные модели данных (DTO) для удобства переноса в UI ---
     public record PeakHour(int Hour, long Flow);
     // Данные для гистограммы часов пик — 24 элемента (час 0..23)
-    public record PeakHourChart(int Hour, long Flow, bool IsPeak);
-    // Маршрут для выпадающего списка
-    public record RouteItem(string UnitName, string StartPoint, string EndPoint)
+    public class PeakHourChart
     {
+        public int Hour { get; set; }
+        public long Flow { get; set; }
+        public bool IsPeak { get; set; }
+
+        public PeakHourChart() { }
+        public PeakHourChart(int hour, long flow, bool isPeak)
+        {
+            Hour = hour;
+            Flow = flow;
+            IsPeak = isPeak;
+        }
+    }
+    // Маршрут для выпадающего списка
+    public class RouteItem
+    {
+        public string UnitName { get; set; } = "";
+        public string StartPoint { get; set; } = "";
+        public string EndPoint { get; set; } = "";
         public string DisplayName => $"{UnitName}: {StartPoint} → {EndPoint}";
+
+        public RouteItem() { }
+        public RouteItem(string unitName, string startPoint, string endPoint)
+        {
+            UnitName = unitName;
+            StartPoint = startPoint;
+            EndPoint = endPoint;
+        }
     }
     public record StopLoad(string Name, long Load);
     public record LowTrip(int Id, DateTime Time, int Count, string Unit);

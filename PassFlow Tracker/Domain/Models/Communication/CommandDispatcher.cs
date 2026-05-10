@@ -41,19 +41,21 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             {
                 var response = request.Command switch
                 {
-                    "import_json" => await ImportJson(request),
-                    "peak_hours" => await GetPeakHours(),
-                    "top_stops" => await GetTopStops(request),
-                    "top_stops_detailed" => await GetTopStopsDetailed(request),
-                    "low_activity" => await GetLowTrips(request),
-                    "trip_stops" => await GetTripStops(request),
-                    "rounds" => await GetRounds(request),
-                    "trips" => await GetTrips(request),
-                    "daily_records" => await GetDailyRecords(request),
-                    "all_data" => await GetAllData(request),
-                    "update_trip_stops" => await UpdateTripStops(request),
-                    "update_trips" => await UpdateTrips(request),
-                    "update_rounds" => await UpdateRounds(request),
+                    "import_json"         => await ImportJson(request),
+                    "peak_hours"          => await GetPeakHours(),
+                    "peak_hours_chart"    => await GetPeakHoursChart(request),
+                    "routes"              => await GetRoutes(),
+                    "top_stops"           => await GetTopStops(request),
+                    "top_stops_detailed"  => await GetTopStopsDetailed(request),
+                    "low_activity"        => await GetLowTrips(request),
+                    "trip_stops"          => await GetTripStops(request),
+                    "rounds"              => await GetRounds(request),
+                    "trips"               => await GetTrips(request),
+                    "daily_records"       => await GetDailyRecords(request),
+                    "all_data"            => await GetAllData(request),
+                    "update_trip_stops"   => await UpdateTripStops(request),
+                    "update_trips"        => await UpdateTrips(request),
+                    "update_rounds"       => await UpdateRounds(request),
                     "update_daily_records" => await UpdateDailyRecords(request),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
@@ -141,8 +143,8 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         private async Task<IpcResponse> GetPeakHoursChart(IpcRequest req)
         {
             string? unitValue = null;
-            if (req.Parameters != null && req.Parameters.TryGetValue("unit", out var unit) && !string.IsNullOrEmpty(unit))
-                unitValue = unit;
+            if (req.Parameters != null && req.Parameters.TryGetValue("unit", out var unit))
+                unitValue = string.IsNullOrEmpty(unit) ? null : unit;
             AppLogger.Info($"[{LogContext}] Гистограмма часов пик, маршрут={unitValue ?? "все"}");
             var data = await _analytics.GetPeakHoursChartAsync(unitValue);
             return new IpcResponse { Success = true, Data = data };

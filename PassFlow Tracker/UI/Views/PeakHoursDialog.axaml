@@ -53,7 +53,13 @@
                     IsEnabled="False"
                     HorizontalAlignment="Stretch"
                     PlaceholderText="Выберите маршрут..."
-                    Margin="20,0,0,0"/>
+                    Margin="20,0,0,0">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding DisplayName}"/>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
         </StackPanel>
       </StackPanel>
 

@@ -9,7 +9,7 @@ namespace PassFlow_Tracker.UI.Converters
     public class HeightRatioConverter : IValueConverter
     {
         public static readonly HeightRatioConverter Instance = new();
-        private const double MaxBarHeight = 260.0;
+        private const double MaxBarHeight = 290.0;
 
         public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
@@ -61,6 +61,38 @@ namespace PassFlow_Tracker.UI.Converters
         {
             bool isPeak = value is bool b && b;
             return isPeak ? FontWeight.Bold : FontWeight.Normal;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>Фон активной кнопки ТАБЛИЦА/ГРАФИКИ: true=White, false=Transparent.</summary>
+    public class BoolToActiveBackgroundConverter : IValueConverter
+    {
+        public static readonly BoolToActiveBackgroundConverter Instance = new();
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            bool active = value is bool b && b;
+            return active
+                ? new SolidColorBrush(Colors.White)
+                : new SolidColorBrush(Colors.Transparent);
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>Цвет текста/иконки активной кнопки: true=#2563EB, false=#64748B.</summary>
+    public class BoolToActiveColorConverter : IValueConverter
+    {
+        public static readonly BoolToActiveColorConverter Instance = new();
+
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            bool active = value is bool b && b;
+            return new SolidColorBrush(active ? Color.Parse("#2563EB") : Color.Parse("#64748B"));
         }
 
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

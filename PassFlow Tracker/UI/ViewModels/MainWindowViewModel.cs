@@ -472,6 +472,13 @@ namespace PassFlow_Tracker.UI.ViewModels
         [ObservableProperty]
         private bool showPeakHoursChart = false;
 
+        partial void OnShowPeakHoursChartChanged(bool value)
+        {
+            OnPropertyChanged(nameof(HidePeakHoursChart));
+        }
+
+        public bool HidePeakHoursChart => !ShowPeakHoursChart;
+
         [ObservableProperty]
         private string peakHoursChartTitle = "Распределение пассажиропотока по часам суток";
 

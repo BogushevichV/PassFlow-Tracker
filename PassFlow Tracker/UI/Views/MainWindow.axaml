@@ -521,20 +521,24 @@
               <StackPanel Orientation="Horizontal" Spacing="2">
                 <Button Command="{Binding SwitchToTableCommand}"
                         CornerRadius="6" Padding="10,6" BorderThickness="0"
-                        Background="White">
+                        Background="{Binding IsTableView, Converter={x:Static local:BoolToActiveBackgroundConverter.Instance}}">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <PathIcon Data="M3 3h7v7H3zm0 11h7v7H3zm11-11h7v7h-7zm0 11h7v7h-7z"
-                              Width="15" Height="15" Foreground="#2563EB"/>
-                    <TextBlock Text="ТАБЛИЦА" FontSize="10" FontWeight="Bold" Foreground="#2563EB"/>
+                              Width="15" Height="15"
+                              Foreground="{Binding IsTableView, Converter={x:Static local:BoolToActiveColorConverter.Instance}}"/>
+                    <TextBlock Text="ТАБЛИЦА" FontSize="10" FontWeight="Bold"
+                               Foreground="{Binding IsTableView, Converter={x:Static local:BoolToActiveColorConverter.Instance}}"/>
                   </StackPanel>
                 </Button>
                 <Button Command="{Binding SwitchToChartCommand}"
                         CornerRadius="6" Padding="10,6" BorderThickness="0"
-                        Background="Transparent">
+                        Background="{Binding IsChartView, Converter={x:Static local:BoolToActiveBackgroundConverter.Instance}}">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <PathIcon Data="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"
-                              Width="15" Height="15" Foreground="#64748B"/>
-                    <TextBlock Text="ГРАФИКИ" FontSize="10" FontWeight="Bold" Foreground="#64748B"/>
+                              Width="15" Height="15"
+                              Foreground="{Binding IsChartView, Converter={x:Static local:BoolToActiveColorConverter.Instance}}"/>
+                    <TextBlock Text="ГРАФИКИ" FontSize="10" FontWeight="Bold"
+                               Foreground="{Binding IsChartView, Converter={x:Static local:BoolToActiveColorConverter.Instance}}"/>
                   </StackPanel>
                 </Button>
               </StackPanel>
@@ -550,8 +554,9 @@
     <!-- ===== MAIN CONTENT ===== -->
     <Grid Grid.Row="2" RowDefinitions="Auto,*">
 
-      <!-- SUB-NAVIGATION TABS -->
-      <Border Grid.Row="0" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+      <!-- SUB-NAVIGATION TABS — только в режиме таблицы -->
+      <Border Grid.Row="0" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1"
+              IsVisible="{Binding IsTableView}">
         <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
           <StackPanel Orientation="Horizontal" Margin="12,8,12,0" Spacing="2">
 
@@ -828,7 +833,7 @@
               </Border>
 
               <!-- Пустое состояние -->
-              <StackPanel Grid.Row="1" IsVisible="{Binding !ShowPeakHoursChart}"
+              <StackPanel Grid.Row="1" IsVisible="{Binding HidePeakHoursChart}"
                           HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
                 <PathIcon Data="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"
                           Width="48" Height="48" Foreground="#CBD5E1"/>
@@ -838,43 +843,53 @@
 
               <!-- Гистограмма часов пик -->
               <Grid Grid.Row="1" IsVisible="{Binding ShowPeakHoursChart}"
-                    RowDefinitions="*,Auto,Auto" Margin="20,16,20,16">
+                    RowDefinitions="Auto,300,Auto,Auto" Margin="20,16,20,16">
 
-                <!-- Столбцы -->
+                <!-- Значения над столбцами -->
                 <ItemsControl Grid.Row="0" ItemsSource="{Binding PeakHourBars}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                      <StackPanel Orientation="Horizontal" Spacing="3"
-                                  VerticalAlignment="Bottom" HorizontalAlignment="Stretch"/>
+                      <StackPanel Orientation="Horizontal" Spacing="3"/>
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <StackPanel Orientation="Vertical" VerticalAlignment="Bottom"
-                                  Width="36" Spacing="2">
-                        <!-- Значение над столбцом -->
-                        <TextBlock Text="{Binding FlowLabel}"
-                                   FontSize="9" Foreground="#64748B"
-                                   HorizontalAlignment="Center"/>
-                        <!-- Столбец -->
+                      <TextBlock Text="{Binding FlowLabel}"
+                                 Width="36" FontSize="9" Foreground="#64748B"
+                                 TextAlignment="Center" Margin="0,0,0,2"/>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Столбцы — фиксированная высота 300px, выравнивание по низу -->
+                <ItemsControl Grid.Row="1" ItemsSource="{Binding PeakHourBars}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="3"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <!-- Grid 300px высотой — столбец прижат к низу -->
+                      <Grid Width="36" Height="300">
                         <Border CornerRadius="3,3,0,0"
-                                MinHeight="2"
-                                Height="{Binding HeightRatio, Converter={x:Static local:HeightRatioConverter.Instance}}"
-                                HorizontalAlignment="Stretch">
+                                Width="36" MinHeight="2"
+                                VerticalAlignment="Bottom"
+                                Height="{Binding HeightRatio, Converter={x:Static local:HeightRatioConverter.Instance}}">
                           <Border.Background>
                             <SolidColorBrush Color="{Binding IsPeak, Converter={x:Static local:PeakColorConverter.Instance}}"/>
                           </Border.Background>
                         </Border>
-                      </StackPanel>
+                      </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
                 <!-- Базовая линия -->
-                <Border Grid.Row="1" Height="1" Background="#E2E8F0" Margin="0,0,0,4"/>
+                <Border Grid.Row="2" Height="1" Background="#E2E8F0" Margin="0,0,0,4"/>
 
                 <!-- Подписи часов -->
-                <ItemsControl Grid.Row="2" ItemsSource="{Binding PeakHourBars}">
+                <ItemsControl Grid.Row="3" ItemsSource="{Binding PeakHourBars}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                       <StackPanel Orientation="Horizontal" Spacing="3"/>

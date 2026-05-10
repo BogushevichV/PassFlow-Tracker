@@ -20,7 +20,6 @@ namespace PassFlow_Tracker.UI.Views
         public void SetRoutes(IEnumerable<RouteItem> routes)
         {
             RouteCombo.ItemsSource = routes;
-            RouteCombo.DisplayMemberBinding = new Avalonia.Data.Binding("DisplayName");
         }
 
         private void OnScopeChanged(object? sender, RoutedEventArgs e)
