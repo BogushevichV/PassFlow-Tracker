@@ -25,7 +25,7 @@ namespace PassFlow_Tracker.Application.Services
 
         // --- Методы получения данных (Аналитический модуль) ---
 
-        // 1. Определение часа пик (Гистограмма)
+        // 1. Определение часа пик (Гистограмма) — вся сеть, 24 часа
         public async Task<List<PeakHour>> GetPeakHoursAsync()
         {
             AppLogger.Info($"[{LogContext}] Запрос часов пик");
@@ -36,8 +36,6 @@ namespace PassFlow_Tracker.Application.Services
                 using var conn = _db.CreateConnection();
                 await conn.OpenAsync();
 
-                // Извлекаем ЧАС в нужном часовом поясе и считаем сумму вход+выход.
-                // AT TIME ZONE 'Europe/Moscow' убирает сдвиг к UTC, который вы видите как "лондонское" время.
                 const string sql = @"
                 SELECT EXTRACT(HOUR FROM time_from AT TIME ZONE 'Europe/Moscow') as hr,
                        SUM(entered + exited) as flow
@@ -57,6 +55,106 @@ namespace PassFlow_Tracker.Application.Services
             catch (Exception ex)
             {
                 AppLogger.Error($"[{LogContext}] Ошибка получения часов пик", ex);
+                throw;
+            }
+        }
+
+        // 1b. Гистограмма часов пик — 24 элемента, опционально фильтр по маршруту
+        public async Task<List<PeakHourChart>> GetPeakHoursChartAsync(string? unitName = null)
+        {
+            AppLogger.Info($"[{LogContext}] Запрос гистограммы часов пик, маршрут={unitName ?? "все"}");
+            var startTime = DateTime.Now;
+            try
+            {
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                string sql;
+                NpgsqlCommand cmd;
+
+                if (string.IsNullOrEmpty(unitName))
+                {
+                    sql = @"
+                    SELECT EXTRACT(HOUR FROM ts.time_from AT TIME ZONE 'Europe/Moscow') AS hr,
+                           SUM(ts.entered + ts.exited) AS flow
+                    FROM trip_stops ts
+                    GROUP BY hr";
+                    cmd = new NpgsqlCommand(sql, conn);
+                }
+                else
+                {
+                    sql = @"
+                    SELECT EXTRACT(HOUR FROM ts.time_from AT TIME ZONE 'Europe/Moscow') AS hr,
+                           SUM(ts.entered + ts.exited) AS flow
+                    FROM trip_stops ts
+                    JOIN trips t ON ts.trip_id = t.id
+                    JOIN rounds r ON t.round_id = r.id
+                    JOIN daily_records dr ON r.daily_record_id = dr.id
+                    WHERE dr.unit_name = @unit
+                    GROUP BY hr";
+                    cmd = new NpgsqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@unit", unitName);
+                }
+
+                // Собираем данные по часам
+                var flowByHour = new long[24];
+                using var rdr = await cmd.ExecuteReaderAsync();
+                while (await rdr.ReadAsync())
+                {
+                    int hr = Convert.ToInt32(rdr["hr"]);
+                    if (hr >= 0 && hr < 24)
+                        flowByHour[hr] = Convert.ToInt64(rdr["flow"]);
+                }
+                cmd.Dispose();
+
+                long maxFlow = flowByHour.Max();
+                var result = new List<PeakHourChart>(24);
+                for (int h = 0; h < 24; h++)
+                    result.Add(new PeakHourChart(h, flowByHour[h], flowByHour[h] == maxFlow && maxFlow > 0));
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Гистограмма получена за {duration:F0}мс");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения гистограммы", ex);
+                throw;
+            }
+        }
+
+        // 1c. Список уникальных маршрутов (unit_name) для выпадающего списка
+        public async Task<List<RouteItem>> GetRoutesAsync()
+        {
+            AppLogger.Info($"[{LogContext}] Запрос списка маршрутов");
+            try
+            {
+                var data = new List<RouteItem>();
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                const string sql = @"
+                SELECT DISTINCT dr.unit_name,
+                       r.start_point, r.end_point
+                FROM daily_records dr
+                JOIN rounds r ON r.daily_record_id = dr.id
+                ORDER BY dr.unit_name, r.start_point";
+
+                using var cmd = new NpgsqlCommand(sql, conn);
+                using var rdr = await cmd.ExecuteReaderAsync();
+                while (await rdr.ReadAsync())
+                    data.Add(new RouteItem(
+                        rdr["unit_name"].ToString() ?? "",
+                        rdr["start_point"].ToString() ?? "",
+                        rdr["end_point"].ToString() ?? ""
+                    ));
+
+                AppLogger.Info($"[{LogContext}] Маршрутов найдено: {data.Count}");
+                return data;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения маршрутов", ex);
                 throw;
             }
         }

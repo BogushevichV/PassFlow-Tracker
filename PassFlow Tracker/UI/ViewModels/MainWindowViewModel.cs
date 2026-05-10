@@ -36,6 +36,7 @@ namespace PassFlow_Tracker.UI.ViewModels
         public ObservableCollection<TripRowViewModel> Trips { get; } = new();
         public ObservableCollection<DailyRecordRowViewModel> DailyRecords { get; } = new();
         public ObservableCollection<DayNodeViewModel> AllDataTree { get; } = new();
+        public ObservableCollection<PeakHourBarViewModel> PeakHourBars { get; } = new();
 
         public bool ShowTripStops    => ActiveTab == "trip_stops";
         public bool ShowRounds       => ActiveTab == "rounds";
@@ -426,37 +427,91 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
+        [ObservableProperty]
+        private bool showPeakHoursChart = false;
+
+        [ObservableProperty]
+        private string peakHoursChartTitle = "Распределение пассажиропотока по часам суток";
+
         [RelayCommand]
         private async Task RunPeakHours()
         {
-            AppLogger.Info($"[{LogContext}] Запрос: часы пик");
+            AppLogger.Info($"[{LogContext}] Запрос: часы пик — открытие диалога");
 
-            ActiveTab = "trip_stops";
+            // 1. Загружаем список маршрутов
+            List<RouteItem>? routes = null;
+            try
+            {
+                var routesResp = await _ipc.SendAsync(new IpcRequest { Command = "routes" });
+                if (routesResp.Success && routesResp.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(routesResp.Data, JsonSerializerDefaults.OutputOptions);
+                    routes = JsonSerializer.Deserialize<List<RouteItem>>(json, JsonSerializerDefaults.SafeOptions);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки маршрутов", ex);
+            }
+
+            // 2. Показываем диалог
+            var dialog = new PeakHoursDialog();
+            dialog.SetRoutes(routes ?? new List<RouteItem>());
+            var result = await dialog.ShowDialog<(bool Confirmed, string? Unit)>(MainWindow);
+
+            if (!result.Confirmed)
+            {
+                AppLogger.Info($"[{LogContext}] Часы пик: отменено");
+                return;
+            }
+
+            // 3. Переключаемся на вкладку графиков
+            IsTableView = false;
 
             try
             {
-                var response = await _ipc.SendAsync(new IpcRequest
+                var req = new IpcRequest
                 {
-                    Command = "peak_hours"
-                });
+                    Command = "peak_hours_chart",
+                    Parameters = new()
+                };
+                if (!string.IsNullOrEmpty(result.Unit))
+                    req.Parameters["unit"] = result.Unit;
+
+                var response = await _ipc.SendAsync(req);
 
                 if (response.Success && response.Data != null)
                 {
                     var json = JsonSerializer.Serialize(response.Data, JsonSerializerDefaults.OutputOptions);
-                    var data = JsonSerializer.Deserialize<List<PeakHour>>(json, JsonSerializerDefaults.SafeOptions);
+                    var data = JsonSerializer.Deserialize<List<PeakHourChart>>(json, JsonSerializerDefaults.SafeOptions);
 
-                    TripStops.Clear();
-                    foreach (var d in data)
+                    PeakHourBars.Clear();
+                    if (data != null && data.Count > 0)
                     {
-                        TripStops.Add(new TripStopRowViewModel
+                        long maxFlow = data.Max(x => x.Flow);
+                        foreach (var d in data)
                         {
-                            StopName = $"Час {d.Hour}",
-                            Transported = (int)d.Flow
-                        });
+                            PeakHourBars.Add(new PeakHourBarViewModel
+                            {
+                                Hour        = d.Hour,
+                                Flow        = d.Flow,
+                                HeightRatio = maxFlow > 0 ? (double)d.Flow / maxFlow : 0,
+                                IsPeak      = d.IsPeak
+                            });
+                        }
                     }
 
-                    Status = "Часы пик";
-                    AppLogger.Info($"[{LogContext}] Часы пик загружены: {data.Count} записей");
+                    ShowPeakHoursChart = true;
+                    PeakHoursChartTitle = string.IsNullOrEmpty(result.Unit)
+                        ? "Пассажиропоток по часам — вся сеть"
+                        : $"Пассажиропоток по часам — {result.Unit}";
+
+                    var peak = data?.FirstOrDefault(x => x.IsPeak);
+                    Status = peak != null
+                        ? $"Час пик: {peak.Hour:D2}:00 ({peak.Flow} пасс.)"
+                        : "Часы пик загружены";
+
+                    AppLogger.Info($"[{LogContext}] Гистограмма построена");
                 }
             }
             catch (Exception ex)

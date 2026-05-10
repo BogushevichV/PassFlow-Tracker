@@ -41,6 +41,8 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                 {
                     "import_json"         => await ImportJson(request),
                     "peak_hours"          => await GetPeakHours(),
+                    "peak_hours_chart"    => await GetPeakHoursChart(request),
+                    "routes"              => await GetRoutes(),
                     "top_stops"           => await GetTopStops(request),
                     "top_stops_detailed"  => await GetTopStopsDetailed(request),
                     "low_activity"        => await GetLowTrips(request),
@@ -130,7 +132,23 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             AppLogger.Info($"[{LogContext}] Получение часов пик");
             var data = await _analytics.GetPeakHoursAsync();
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} часов пик");
+            return new IpcResponse { Success = true, Data = data };
+        }
 
+        private async Task<IpcResponse> GetPeakHoursChart(IpcRequest req)
+        {
+            string? unitValue = null;
+            if (req.Parameters != null && req.Parameters.TryGetValue("unit", out var unit) && !string.IsNullOrEmpty(unit))
+                unitValue = unit;
+            AppLogger.Info($"[{LogContext}] Гистограмма часов пик, маршрут={unitValue ?? "все"}");
+            var data = await _analytics.GetPeakHoursChartAsync(unitValue);
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRoutes()
+        {
+            AppLogger.Info($"[{LogContext}] Получение маршрутов");
+            var data = await _analytics.GetRoutesAsync();
             return new IpcResponse { Success = true, Data = data };
         }
 

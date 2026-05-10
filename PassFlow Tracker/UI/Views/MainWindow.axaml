@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PassFlow_Tracker.UI.ViewModels"
+        xmlns:local="using:PassFlow_Tracker.UI.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
@@ -814,15 +815,84 @@
 
           </Panel>
 
-          <!-- CHART VIEW (placeholder) -->
+          <!-- CHART VIEW -->
           <Border Grid.Row="0" IsVisible="{Binding IsChartView}"
-                  Background="#F8FAFC" Padding="24">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-              <PathIcon Data="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"
-                        Width="48" Height="48" Foreground="#CBD5E1"/>
-              <TextBlock Text="Графики будут здесь" Foreground="#94A3B8"
-                         FontSize="14" HorizontalAlignment="Center"/>
-            </StackPanel>
+                  Background="#F8FAFC">
+            <Grid RowDefinitions="Auto,*">
+
+              <!-- Заголовок -->
+              <Border Grid.Row="0" Background="White" BorderBrush="#E2E8F0"
+                      BorderThickness="0,0,0,1" Padding="20,12">
+                <TextBlock Text="{Binding PeakHoursChartTitle}"
+                           FontSize="14" FontWeight="SemiBold" Foreground="#1E293B"/>
+              </Border>
+
+              <!-- Пустое состояние -->
+              <StackPanel Grid.Row="1" IsVisible="{Binding !ShowPeakHoursChart}"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                <PathIcon Data="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"
+                          Width="48" Height="48" Foreground="#CBD5E1"/>
+                <TextBlock Text="Нажмите «Часы пик» для построения гистограммы"
+                           Foreground="#94A3B8" FontSize="14" HorizontalAlignment="Center"/>
+              </StackPanel>
+
+              <!-- Гистограмма часов пик -->
+              <Grid Grid.Row="1" IsVisible="{Binding ShowPeakHoursChart}"
+                    RowDefinitions="*,Auto,Auto" Margin="20,16,20,16">
+
+                <!-- Столбцы -->
+                <ItemsControl Grid.Row="0" ItemsSource="{Binding PeakHourBars}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="3"
+                                  VerticalAlignment="Bottom" HorizontalAlignment="Stretch"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Orientation="Vertical" VerticalAlignment="Bottom"
+                                  Width="36" Spacing="2">
+                        <!-- Значение над столбцом -->
+                        <TextBlock Text="{Binding FlowLabel}"
+                                   FontSize="9" Foreground="#64748B"
+                                   HorizontalAlignment="Center"/>
+                        <!-- Столбец -->
+                        <Border CornerRadius="3,3,0,0"
+                                MinHeight="2"
+                                Height="{Binding HeightRatio, Converter={x:Static local:HeightRatioConverter.Instance}}"
+                                HorizontalAlignment="Stretch">
+                          <Border.Background>
+                            <SolidColorBrush Color="{Binding IsPeak, Converter={x:Static local:PeakColorConverter.Instance}}"/>
+                          </Border.Background>
+                        </Border>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Базовая линия -->
+                <Border Grid.Row="1" Height="1" Background="#E2E8F0" Margin="0,0,0,4"/>
+
+                <!-- Подписи часов -->
+                <ItemsControl Grid.Row="2" ItemsSource="{Binding PeakHourBars}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="3"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding HourLabel}"
+                                 Width="36" FontSize="10"
+                                 Foreground="{Binding IsPeak, Converter={x:Static local:PeakTextColorConverter.Instance}}"
+                                 FontWeight="{Binding IsPeak, Converter={x:Static local:PeakFontWeightConverter.Instance}}"
+                                 TextAlignment="Center"/>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+              </Grid>
+            </Grid>
           </Border>
 
           <!-- STATUS BAR -->
