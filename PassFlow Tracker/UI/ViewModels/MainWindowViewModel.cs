@@ -4,6 +4,8 @@ using ClosedXML.Excel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DocumentFormat.OpenXml.Drawing.Charts;
+using MsBox.Avalonia;
+using MsBox.Avalonia.Enums;
 using PassFlow_Tracker.Application.Services;
 using PassFlow_Tracker.Application.Services.IPC;
 using PassFlow_Tracker.Domain.Models;
@@ -63,6 +65,24 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Инициализация главного окна");
             await LoadTripStops();
             AppLogger.Info($"[{LogContext}] Главное окно инициализировано");
+        }
+
+        [ObservableProperty]
+        private bool hasUnsavedChanges;
+
+        [ObservableProperty]
+        private bool canEdit = true;
+
+        private bool CheckUnsavedChanges()
+        {
+            return CanEdit && ActiveTab switch
+            {
+                "trip_stops" => TripStops.Any(ts => ts.IsDirty),
+                "trips" => Trips.Any(t => t.IsDirty),
+                "rounds" => Rounds.Any(r => r.IsDirty),
+                "daily_records" => DailyRecords.Any(dr => dr.IsDirty),
+                _ => false
+            };
         }
 
         [ObservableProperty]
@@ -176,6 +196,31 @@ namespace PassFlow_Tracker.UI.ViewModels
         [RelayCommand]
         private async Task SetActiveTab(string tab)
         {
+            if (CheckUnsavedChanges())
+            {
+                HasUnsavedChanges = true;
+
+                var box = MessageBoxManager.GetMessageBoxStandard(
+                    "Несохранённые изменения",
+                    "Есть несохранённые изменения.\n" +
+                    "(Внимание: при переключении на другую вкладку " +
+                    "все несохранённые изменения будут утеряны)\n" +
+                    "Желаете продолжить?",
+                    ButtonEnum.YesNo);
+                Status = "Есть несохранённые изменения! Сохраните или отмените.";
+
+                var result = await box.ShowAsync();
+
+                if (result != ButtonResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            HasUnsavedChanges = false;
+            ActiveTab = tab;
+            CanEdit = true;
+
             AppLogger.Info($"[{LogContext}] Переключение на вкладку: {tab}");
 
             ActiveTab = tab;
@@ -310,8 +355,6 @@ namespace PassFlow_Tracker.UI.ViewModels
             } 
         }
 
-        // MainWindowViewModel.cs
-
         [RelayCommand]
         private async Task ExportJson()
         {
@@ -331,7 +374,6 @@ namespace PassFlow_Tracker.UI.ViewModels
 
             try
             {
-                // Формируем данные в формате RootRecord (как при импорте)
                 List<RootRecord> exportData = ActiveTab switch
                 {
                     "trip_stops" => JsonExportService.ExportTripStops(TripStops),
@@ -526,7 +568,6 @@ namespace PassFlow_Tracker.UI.ViewModels
         {
             AppLogger.Info($"[{LogContext}] Запрос: топ-{TopN} остановок — открытие диалога");
 
-            // Показываем диалог выбора режима
             var dialog = new TopStopsDialog();
             var result = await dialog.ShowDialog<TopStopsMode?>(MainWindow);
 
@@ -578,6 +619,9 @@ namespace PassFlow_Tracker.UI.ViewModels
                         TopStopsMode.AllTime   => "за всё время",
                         _                      => "по записям"
                     };
+
+                    CanEdit = false;
+
                     Status = $"Топ-{TopN} остановок ({modeLabel}): {data?.Count ?? 0}";
                     AppLogger.Info($"[{LogContext}] Топ-{TopN} загружен: {data?.Count ?? 0} записей");
                 }
@@ -635,6 +679,8 @@ namespace PassFlow_Tracker.UI.ViewModels
                         }
                     }
 
+                    CanEdit = false;
+
                     Status = $"Низкая активность: {data?.Count ?? 0} рейсов";
                     AppLogger.Info($"[{LogContext}] Низкая активность загружена: {data?.Count ?? 0} записей");
                 }
@@ -661,15 +707,14 @@ namespace PassFlow_Tracker.UI.ViewModels
                 {
                     var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
                     TripStops.Clear();
-                    data?.ForEach(d => TripStops.Add(new TripStopRowViewModel
+                    data?.ForEach(d =>
                     {
-                        StopNumber  = d.StopNumber,
-                        StopName    = d.StopName,
-                        Label       = d.StopName,   // в обычном режиме Label = название
-                        Entered     = d.Entered,
-                        Exited      = d.Exited,
-                        Transported = d.Transported
-                    }));
+                        var vm = new TripStopRowViewModel();
+                        vm.SetOriginalValues(d.Id,
+                            d.StopNumber, d.StopName, label: d.StopName, 
+                            d.Entered, d.Exited, d.Transported);
+                        TripStops.Add(vm);
+                    });
                     Status = $"Остановки: {data?.Count ?? 0}";
                 },
                 errorMessage: "Ошибка загрузки остановок");
@@ -777,14 +822,18 @@ namespace PassFlow_Tracker.UI.ViewModels
                 {
                     var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
                     DailyRecords.Clear();
-                    data?.ForEach(d => DailyRecords.Add(new DailyRecordRowViewModel
+                    data?.ForEach(d =>
                     {
-                        UnitName = d.UnitName,
-                        RecordDate = d.RecordDate,
-                        Entered = d.Entered,
-                        Exited = d.Exited,
-                        Transported = d.Transported
-                    }));
+                        var vm = new DailyRecordRowViewModel();
+                        vm.SetOriginalValues(
+                            id: d.Id,
+                            unitName: d.UnitName,
+                            recordDate: d.RecordDate,
+                            entered: d.Entered,
+                            exited: d.Exited,
+                            transported: d.Transported);
+                        DailyRecords.Add(vm);
+                    });
                     Status = $"Дни: {data?.Count ?? 0}";
                 },
                 errorMessage: "Ошибка загрузки дней");
@@ -811,17 +860,21 @@ namespace PassFlow_Tracker.UI.ViewModels
                 {
                     var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
                     Rounds.Clear();
-                    data?.ForEach(d => Rounds.Add(new RoundRowViewModel
+                    data?.ForEach(d =>
                     {
-                        UnitName = d.UnitName,
-                        StartPoint = d.StartPoint,
-                        EndPoint = d.EndPoint,
-                        TimeFrom = d.TimeFrom,
-                        TimeTo = d.TimeTo,
-                        Entered = d.Entered,
-                        Exited = d.Exited,
-                        Transported = d.Transported
-                    }));
+                        var vm = new RoundRowViewModel();
+                        vm.SetOriginalValues(
+                            id: d.Id,
+                            unitName: d.UnitName,
+                            startPoint: d.StartPoint,
+                            endPoint: d.EndPoint,
+                            timeFrom: d.TimeFrom,
+                            timeTo: d.TimeTo,
+                            entered: d.Entered,
+                            exited: d.Exited,
+                            transported: d.Transported);
+                        Rounds.Add(vm);
+                    });
                     Status = $"Круги: {data?.Count ?? 0}";
                 },
                 errorMessage: "Ошибка загрузки кругов");
@@ -848,17 +901,21 @@ namespace PassFlow_Tracker.UI.ViewModels
                 {
                     var data = JsonSerializer.Deserialize<List<TripRow>>(json);
                     Trips.Clear();
-                    data?.ForEach(d => Trips.Add(new TripRowViewModel
+                    data?.ForEach(d =>
                     {
-                        UnitName = d.UnitName,
-                        StartPoint = d.StartPoint,
-                        EndPoint = d.EndPoint,
-                        TimeFrom = d.TimeFrom,
-                        TimeTo = d.TimeTo,
-                        Entered = d.Entered,
-                        Exited = d.Exited,
-                        Transported = d.Transported
-                    }));
+                        var vm = new TripRowViewModel();
+                        vm.SetOriginalValues(
+                            id: d.Id,
+                            unitName: d.UnitName,
+                            startPoint: d.StartPoint,
+                            endPoint: d.EndPoint,
+                            timeFrom: d.TimeFrom,
+                            timeTo: d.TimeTo,
+                            entered: d.Entered,
+                            exited: d.Exited,
+                            transported: d.Transported);
+                        Trips.Add(vm);
+                    });
                     Status = $"Рейсы: {data?.Count ?? 0}";
                 },
                 errorMessage: "Ошибка загрузки рейсов");
@@ -886,14 +943,15 @@ namespace PassFlow_Tracker.UI.ViewModels
                             {
                                 var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
                                 TripStops.Clear();
-                                data?.ForEach(d => TripStops.Add(new TripStopRowViewModel
+                                data?.ForEach(d =>
                                 {
-                                    StopNumber = d.StopNumber,
-                                    StopName = d.StopName,
-                                    Entered = d.Entered,
-                                    Exited = d.Exited,
-                                    Transported = d.Transported
-                                }));
+                                    var vm = new TripStopRowViewModel();
+                                    vm.SetOriginalValues(
+                                        d.Id,
+                                        d.StopNumber, d.StopName, label: d.StopName,
+                                        d.Entered, d.Exited, d.Transported);
+                                    TripStops.Add(vm);
+                                });
                                 Status = $"Импортировано остановок: {data?.Count ?? 0}";
                             },
                             errorMessage: "Ошибка загрузки импортированных остановок");
@@ -976,17 +1034,21 @@ namespace PassFlow_Tracker.UI.ViewModels
                             {
                                 var data = JsonSerializer.Deserialize<List<TripRow>>(json);
                                 Trips.Clear();
-                                data?.ForEach(d => Trips.Add(new TripRowViewModel
+                                data?.ForEach(d =>
                                 {
-                                    UnitName = d.UnitName,
-                                    StartPoint = d.StartPoint,
-                                    EndPoint = d.EndPoint,
-                                    TimeFrom = d.TimeFrom,
-                                    TimeTo = d.TimeTo,
-                                    Entered = d.Entered,
-                                    Exited = d.Exited,
-                                    Transported = d.Transported
-                                }));
+                                    var vm = new TripRowViewModel();
+                                    vm.SetOriginalValues(
+                                        id: d.Id,
+                                        unitName: d.UnitName,
+                                        startPoint: d.StartPoint,
+                                        endPoint: d.EndPoint,
+                                        timeFrom: d.TimeFrom,
+                                        timeTo: d.TimeTo,
+                                        entered: d.Entered,
+                                        exited: d.Exited,
+                                        transported: d.Transported);
+                                    Trips.Add(vm);
+                                });
                                 Status = $"Импортировано рейсов: {data?.Count ?? 0}";
                             },
                             errorMessage: "Ошибка загрузки импортированных рейсов");
@@ -1000,17 +1062,21 @@ namespace PassFlow_Tracker.UI.ViewModels
                             {
                                 var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
                                 Rounds.Clear();
-                                data?.ForEach(d => Rounds.Add(new RoundRowViewModel
+                                data?.ForEach(d =>
                                 {
-                                    UnitName = d.UnitName,
-                                    StartPoint = d.StartPoint,
-                                    EndPoint = d.EndPoint,
-                                    TimeFrom = d.TimeFrom,
-                                    TimeTo = d.TimeTo,
-                                    Entered = d.Entered,
-                                    Exited = d.Exited,
-                                    Transported = d.Transported
-                                }));
+                                    var vm = new RoundRowViewModel();
+                                    vm.SetOriginalValues(
+                                        id: d.Id,
+                                        unitName: d.UnitName,
+                                        startPoint: d.StartPoint,
+                                        endPoint: d.EndPoint,
+                                        timeFrom: d.TimeFrom,
+                                        timeTo: d.TimeTo,
+                                        entered: d.Entered,
+                                        exited: d.Exited,
+                                        transported: d.Transported);
+                                    Rounds.Add(vm);
+                                });
                                 Status = $"Импортировано кругов: {data?.Count ?? 0}";
                             },
                             errorMessage: "Ошибка загрузки импортированных кругов");
@@ -1024,14 +1090,18 @@ namespace PassFlow_Tracker.UI.ViewModels
                             {
                                 var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
                                 DailyRecords.Clear();
-                                data?.ForEach(d => DailyRecords.Add(new DailyRecordRowViewModel
+                                data?.ForEach(d =>
                                 {
-                                    UnitName = d.UnitName,
-                                    RecordDate = d.RecordDate,
-                                    Entered = d.Entered,
-                                    Exited = d.Exited,
-                                    Transported = d.Transported
-                                }));
+                                    var vm = new DailyRecordRowViewModel();
+                                    vm.SetOriginalValues(
+                                        id: d.Id,
+                                        unitName: d.UnitName,
+                                        recordDate: d.RecordDate,
+                                        entered: d.Entered,
+                                        exited: d.Exited,
+                                        transported: d.Transported);
+                                    DailyRecords.Add(vm);
+                                });
                                 Status = $"Импортировано дней: {data?.Count ?? 0}";
                             },
                             errorMessage: "Ошибка загрузки импортированных дней");
@@ -1082,6 +1152,239 @@ namespace PassFlow_Tracker.UI.ViewModels
                 Status = $"Ошибка: {ex.Message}";
                 AppLogger.Error($"[{LogContext}] {errorMessage}", ex);
             }
+        }
+
+        [RelayCommand]
+        private async Task SaveChanges()
+        {
+            if (!CheckUnsavedChanges())
+            {
+                Status = "Нет изменений для сохранения";
+                return;
+            }
+
+            Status = "Сохранение...";
+
+            try
+            {
+                string? resultMessage = null;
+
+                switch (ActiveTab)
+                {
+                    case "trip_stops":
+                        resultMessage = await SaveTripStops();
+                        break;
+                    case "trips":
+                        resultMessage = await SaveTrips();
+                        break;
+                    case "rounds":
+                        resultMessage = await SaveRounds();
+                        break;
+                    case "daily_records":
+                        resultMessage = await SaveDailyRecords();
+                        break;
+                    case "all_data":
+                        Status = "Вкладка 'Все данные' не поддерживает редактирование";
+                        return;
+                }
+
+                HasUnsavedChanges = false;
+                Status = resultMessage ?? "Изменения сохранены";
+                AppLogger.Info($"[{LogContext}] {Status}");
+            }
+            catch (Exception ex)
+            {
+                Status = $"Ошибка сохранения: {ex.Message}";
+                AppLogger.Error($"[{LogContext}] Ошибка сохранения", ex);
+            }
+        }
+
+        [RelayCommand]
+        private void CancelChanges()
+        {
+            int revertedCount = 0;
+
+            switch (ActiveTab)
+            {
+                case "trip_stops":
+                    revertedCount = TripStops.Count(ts => ts.IsDirty);
+                    foreach (var item in TripStops.Where(ts => ts.IsDirty))
+                        item.RejectChanges();
+                    break;
+                case "trips":
+                    revertedCount = Trips.Count(t => t.IsDirty);
+                    foreach (var item in Trips.Where(t => t.IsDirty))
+                        item.RejectChanges();
+                    break;
+                case "rounds":
+                    revertedCount = Rounds.Count(r => r.IsDirty);
+                    foreach (var item in Rounds.Where(r => r.IsDirty))
+                        item.RejectChanges();
+                    break;
+                case "daily_records":
+                    revertedCount = DailyRecords.Count(dr => dr.IsDirty);
+                    foreach (var item in DailyRecords.Where(dr => dr.IsDirty))
+                        item.RejectChanges();
+                    break;
+            }
+
+            HasUnsavedChanges = false;
+            Status = revertedCount > 0 ? $"Отменено изменений: {revertedCount}" : "Нет изменений";
+            AppLogger.Info($"[{LogContext}] {Status}");
+        }
+
+        private async Task<string> SaveTripStops()
+        {
+            var changed = TripStops.Where(ts => ts.IsDirty).ToList();
+            if (!changed.Any()) return "Нет изменений";
+
+            var data = changed.Select(ts => new
+            {
+                Id = ts.TripStopId,
+                ts.StopNumber,
+                StopName = ts.Label,
+                ts.TimeFrom,
+                ts.TimeTo,
+                ts.Entered,
+                ts.Exited,
+                ts.Transported
+            }).ToList();
+
+            var response = await _ipc.SendAsync(new IpcRequest
+            {
+                Command = "update_trip_stops",
+                Parameters = new() { ["data"] = JsonSerializer.Serialize(data) }
+            });
+
+            if (!response.Success)
+                throw new Exception(response.Message);
+
+            foreach (var item in changed)
+                item.AcceptChanges();
+
+            return $"Сохранено остановок: {changed.Count}";
+        }
+
+        private async Task<string> SaveTrips()
+        {
+            var changed = Trips.Where(t => t.IsDirty).ToList();
+            if (!changed.Any()) return "Нет изменений";
+
+            var data = changed.Select(t =>
+            {
+                var fromLocal = DateTime.Parse(t.TimeFrom);
+                var toLocal = DateTime.Parse(t.TimeTo);
+
+                var fromUtc = fromLocal.Kind == DateTimeKind.Utc
+                    ? fromLocal
+                    : TimeZoneInfo.ConvertTimeToUtc(fromLocal, TimeZoneInfo.Local);
+                var toUtc = toLocal.Kind == DateTimeKind.Utc
+                    ? toLocal
+                    : TimeZoneInfo.ConvertTimeToUtc(toLocal, TimeZoneInfo.Local);
+
+                return new
+                {
+                    Id = t.TripId,
+                    t.UnitName,
+                    t.StartPoint,
+                    t.EndPoint,
+                    TimeFrom = fromUtc.ToString("yyyy-MM-dd HH:mm"),
+                    TimeTo = toUtc.ToString("yyyy-MM-dd HH:mm"),
+                    t.Entered,
+                    t.Exited,
+                    t.Transported
+                };
+            }).ToList();
+
+            var response = await _ipc.SendAsync(new IpcRequest
+            {
+                Command = "update_trips",
+                Parameters = new() { ["data"] = JsonSerializer.Serialize(data) }
+            });
+
+            if (!response.Success)
+                throw new Exception(response.Message);
+
+            foreach (var item in changed)
+                item.AcceptChanges();
+
+            return $"Сохранено рейсов: {changed.Count}";
+        }
+
+        private async Task<string> SaveRounds()
+        {
+            var changed = Rounds.Where(r => r.IsDirty).ToList();
+            if (!changed.Any()) return "Нет изменений";
+
+            var data = changed.Select(r =>
+            {
+                var fromLocal = DateTime.Parse(r.TimeFrom);
+                var toLocal = DateTime.Parse(r.TimeTo);
+
+                var fromUtc = fromLocal.Kind == DateTimeKind.Utc
+                    ? fromLocal
+                    : TimeZoneInfo.ConvertTimeToUtc(fromLocal, TimeZoneInfo.Local);
+                var toUtc = toLocal.Kind == DateTimeKind.Utc
+                    ? toLocal
+                    : TimeZoneInfo.ConvertTimeToUtc(toLocal, TimeZoneInfo.Local);
+
+                return new
+                {
+                    Id = r.RoundId,
+                    r.UnitName,
+                    r.StartPoint,
+                    r.EndPoint,
+                    TimeFrom = fromUtc.ToString("yyyy-MM-dd HH:mm"),
+                    TimeTo = toUtc.ToString("yyyy-MM-dd HH:mm"),
+                    r.Entered,
+                    r.Exited,
+                    r.Transported
+                };
+            }).ToList();
+
+            var response = await _ipc.SendAsync(new IpcRequest
+            {
+                Command = "update_rounds",
+                Parameters = new() { ["data"] = JsonSerializer.Serialize(data) }
+            });
+
+            if (!response.Success)
+                throw new Exception(response.Message);
+
+            foreach (var item in changed)
+                item.AcceptChanges();
+
+            return $"Сохранено кругов: {changed.Count}";
+        }
+
+        private async Task<string> SaveDailyRecords()
+        {
+            var changed = DailyRecords.Where(dr => dr.IsDirty).ToList();
+            if (!changed.Any()) return "Нет изменений";
+
+            var data = changed.Select(dr => new
+            {
+                Id = dr.DailyRecordId,
+                dr.UnitName,
+                dr.RecordDate,
+                dr.Entered,
+                dr.Exited,
+                dr.Transported
+            }).ToList();
+
+            var response = await _ipc.SendAsync(new IpcRequest
+            {
+                Command = "update_daily_records",
+                Parameters = new() { ["data"] = JsonSerializer.Serialize(data) }
+            });
+
+            if (!response.Success)
+                throw new Exception(response.Message);
+
+            foreach (var item in changed)
+                item.AcceptChanges();
+
+            return $"Сохранено дней: {changed.Count}";
         }
     }
 }

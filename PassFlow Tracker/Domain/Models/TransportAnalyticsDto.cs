@@ -18,6 +18,7 @@ namespace PassFlow_Tracker.Domain.Models
     public record StopLoad(string Name, long Load);
     public record LowTrip(int Id, DateTime Time, int Count, string Unit);
     public record TripStopRow(
+        int Id,
         int StopNumber,
         string StopName,
         int Entered,
@@ -29,6 +30,7 @@ namespace PassFlow_Tracker.Domain.Models
 
     // Расширенная запись для топ-остановок с датой/периодом
     public record TopStopRow(
+        int Id,
         int StopNumber,
         string StopName,
         string Label,       // название + дата/период для отображения
@@ -37,6 +39,7 @@ namespace PassFlow_Tracker.Domain.Models
         int Transported);
 
     public record DailyRecordRow(
+        int Id,
         string UnitName,
         string RecordDate,
         int Entered,
@@ -44,6 +47,7 @@ namespace PassFlow_Tracker.Domain.Models
         int Transported);
 
     public record RoundRow(
+        int Id,
         string UnitName,
         string StartPoint,
         string EndPoint,
@@ -54,6 +58,7 @@ namespace PassFlow_Tracker.Domain.Models
         int Transported);
 
     public record TripRow(
+        int Id,
         string UnitName,
         string StartPoint,
         string EndPoint,
@@ -110,4 +115,16 @@ namespace PassFlow_Tracker.Domain.Models
         public int Transported { get; set; }
         public List<AllDataRoundDto> Rounds { get; set; } = new();
     }
+
+    public record TripStopUpdateDto(int Id, int StopNumber, string StopName,
+    string TimeFrom, string TimeTo, int Entered, int Exited, int Transported);
+
+    public record TripUpdateDto(int Id, string UnitName, string StartPoint, string EndPoint,
+        string TimeFrom, string TimeTo, int Entered, int Exited, int Transported);
+
+    public record RoundUpdateDto(int Id, string UnitName, string StartPoint, string EndPoint,
+        string TimeFrom, string TimeTo, int Entered, int Exited, int Transported);
+
+    public record DailyRecordUpdateDto(int Id, string UnitName, string RecordDate,
+        int Entered, int Exited, int Transported);
 }

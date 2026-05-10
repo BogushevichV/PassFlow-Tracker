@@ -1,5 +1,7 @@
+using DocumentFormat.OpenXml.Bibliography;
 using DocumentFormat.OpenXml.Drawing;
 using DocumentFormat.OpenXml.Office2010.Excel;
+using DocumentFormat.OpenXml.Presentation;
 using Npgsql;
 using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Domain.Models;
@@ -228,6 +230,7 @@ namespace PassFlow_Tracker.Application.Services
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new TripRow(
+                        0,
                         rdr["unit_name"].ToString() ?? "",
                         rdr["start_point"].ToString() ?? "",
                         rdr["end_point"].ToString() ?? "",
@@ -262,7 +265,8 @@ namespace PassFlow_Tracker.Application.Services
                 await conn.OpenAsync();
 
                 string sql = @"
-                SELECT ts.stop_number, ts.stop_name,
+                SELECT MIN(ts.id) AS id,
+                       ts.stop_number, ts.stop_name,
                        SUM(ts.entered)     AS total_entered,
                        SUM(ts.exited)      AS total_exited,
                        SUM(ts.transported) AS total_transported
@@ -283,6 +287,7 @@ namespace PassFlow_Tracker.Application.Services
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new TripStopRow(
+                        Convert.ToInt32(rdr["id"]),
                         Convert.ToInt32(rdr["stop_number"]),
                         rdr["stop_name"].ToString() ?? "",
                         Convert.ToInt32(rdr["total_entered"]),
@@ -422,7 +427,7 @@ namespace PassFlow_Tracker.Application.Services
                         label = $"{name}  {((DateOnly)rdr["date_from"]).ToString("dd.MM.yyyy")}–{((DateOnly)rdr["date_to"]).ToString("dd.MM.yyyy")}";
                     }
 
-                    data.Add(new TopStopRow(num, name, label, entered, exited, transported));
+                    data.Add(new TopStopRow(0, num, name, label, entered, exited, transported));
                 }
 
                 cmd.Dispose();
@@ -464,6 +469,7 @@ namespace PassFlow_Tracker.Application.Services
             using var rdr = await cmd.ExecuteReaderAsync();
             while (await rdr.ReadAsync())
                 data.Add(new DailyRecordRow(
+                    Convert.ToInt32(rdr["id"]),
                     rdr["unit_name"].ToString() ?? "",
                     ((DateOnly)rdr["record_date"]).ToString("dd.MM.yyyy"),
                     Convert.ToInt32(rdr["entered"]),
@@ -486,7 +492,8 @@ namespace PassFlow_Tracker.Application.Services
                 await conn.OpenAsync();
 
                 var sql = @"
-                    SELECT dr.unit_name,
+                    SELECT dr.id,
+                           dr.unit_name,
                            r.start_point, r.end_point,
                            r.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
                            r.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
@@ -510,6 +517,7 @@ namespace PassFlow_Tracker.Application.Services
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new RoundRow(
+                        Convert.ToInt32(rdr["id"]),
                         rdr["unit_name"].ToString() ?? "",
                         rdr["start_point"].ToString() ?? "",
                         rdr["end_point"].ToString() ?? "",
@@ -544,7 +552,8 @@ namespace PassFlow_Tracker.Application.Services
                 await conn.OpenAsync();
 
                 var sql = @"
-                    SELECT dr.unit_name,
+                    SELECT t.id,
+                           dr.unit_name,
                            t.start_point, t.end_point,
                            t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
                            t.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
@@ -569,6 +578,7 @@ namespace PassFlow_Tracker.Application.Services
                 using var rdr = await cmd.ExecuteReaderAsync();
                 while (await rdr.ReadAsync())
                     data.Add(new TripRow(
+                        Convert.ToInt32(rdr["id"]),
                         rdr["unit_name"].ToString() ?? "",
                         rdr["start_point"].ToString() ?? "",
                         rdr["end_point"].ToString() ?? "",
@@ -731,6 +741,206 @@ namespace PassFlow_Tracker.Application.Services
             catch (Exception ex)
             {
                 AppLogger.Error($"[{LogContext}] Ошибка получения всех данных", ex);
+                throw;
+            }
+        }
+
+        public async Task UpdateTripStopsAsync(List<TripStopUpdateDto> stops)
+        {
+            
+            AppLogger.Info($"[{LogContext}] Обновление остановок");
+            var startTime = DateTime.Now;
+
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            await using var transaction = await conn.BeginTransactionAsync();
+
+            try
+            {
+                foreach (var stop in stops)
+                {
+                    const string sql = @"
+                        UPDATE trip_stops
+                        SET stop_number    = @num,
+                            stop_name      = @name,
+                            entered        = @entered,
+                            exited         = @exited,
+                            transported    = @transported
+                        WHERE id = @id";
+
+
+                    //time_from = @from::timestamptz,
+                    //time_to = @to::timestamptz,
+
+                    using var cmd = new NpgsqlCommand(sql, conn, transaction);
+                    cmd.Parameters.AddWithValue("@id", stop.Id);
+                    cmd.Parameters.AddWithValue("@num", stop.StopNumber);
+
+                    cmd.Parameters.AddWithValue("@name", stop.StopName);
+                    //cmd.Parameters.AddWithValue("@from", DateTime.Parse(stop.TimeFrom));
+                    //cmd.Parameters.AddWithValue("@to", DateTime.Parse(stop.TimeTo));
+                    cmd.Parameters.AddWithValue("@entered", stop.Entered);
+                    cmd.Parameters.AddWithValue("@exited", stop.Exited);
+                    cmd.Parameters.AddWithValue("@transported", stop.Transported);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Остановки обновлены за {duration:F0}мс, записей: {stops.Count}");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                AppLogger.Error($"[{LogContext}] Ошибка обновления остановок", ex);
+                throw;
+            }
+        }
+
+        public async Task UpdateTripsAsync(List<TripUpdateDto> trips)
+        {
+            AppLogger.Info($"[{LogContext}] Обновление рейсов");
+            var startTime = DateTime.Now;
+
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            await using var transaction = await conn.BeginTransactionAsync();
+
+            try
+            {
+                foreach (var trip in trips)
+                {
+                    const string sql = @"
+                        UPDATE trips
+                        SET start_point   = @start,
+                            end_point     = @end,
+                            time_from      = @from::timestamptz,
+                            time_to        = @to::timestamptz,
+                            entered       = @entered,
+                            exited        = @exited,
+                            transported   = @transported
+                        WHERE id = @id";
+
+                    using var cmd = new NpgsqlCommand(sql, conn, transaction);
+                    cmd.Parameters.AddWithValue("@id", trip.Id);
+                    cmd.Parameters.AddWithValue("@start", trip.StartPoint);
+                    cmd.Parameters.AddWithValue("@end", trip.EndPoint);
+                    cmd.Parameters.AddWithValue("@from", DateTime.Parse(trip.TimeFrom));
+                    cmd.Parameters.AddWithValue("@to", DateTime.Parse(trip.TimeTo));
+                    cmd.Parameters.AddWithValue("@entered", trip.Entered);
+                    cmd.Parameters.AddWithValue("@exited", trip.Exited);
+                    cmd.Parameters.AddWithValue("@transported", trip.Transported);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Рейсы обновлены за {duration:F0}мс, записей: {trips.Count}");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                AppLogger.Error($"[{LogContext}] Ошибка обновления рейсов", ex);
+                throw;
+            }
+        }
+
+        public async Task UpdateRoundsAsync(List<RoundUpdateDto> rounds)
+        {
+            AppLogger.Info($"[{LogContext}] Обновление кругов");
+            var startTime = DateTime.Now;
+
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            await using var transaction = await conn.BeginTransactionAsync();
+
+            try
+            {
+                foreach (var round in rounds)
+                {
+                    const string sql = @"
+                        UPDATE rounds
+                        SET start_point   = @start,
+                            end_point     = @end,
+                            time_from      = @from::timestamptz,
+                            time_to        = @to::timestamptz,
+                            entered       = @entered,
+                            exited        = @exited,
+                            transported   = @transported
+                        WHERE id = @id";
+
+                    using var cmd = new NpgsqlCommand(sql, conn, transaction);
+                    cmd.Parameters.AddWithValue("@id", round.Id);
+                    cmd.Parameters.AddWithValue("@start", round.StartPoint);
+                    cmd.Parameters.AddWithValue("@end", round.EndPoint);
+                    cmd.Parameters.AddWithValue("@from", DateTime.Parse(round.TimeFrom));
+                    cmd.Parameters.AddWithValue("@to", DateTime.Parse(round.TimeTo));
+                    cmd.Parameters.AddWithValue("@entered", round.Entered);
+                    cmd.Parameters.AddWithValue("@exited", round.Exited);
+                    cmd.Parameters.AddWithValue("@transported", round.Transported);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Круги обновлены за {duration:F0}мс, записей: {rounds.Count}");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                AppLogger.Error($"[{LogContext}] Ошибка обновления кругов ", ex);
+                throw;
+            }
+        }
+
+        public async Task UpdateDailyRecordsAsync(List<DailyRecordUpdateDto> records)
+        {
+            AppLogger.Info($"[{LogContext}] Обновление дней");
+            var startTime = DateTime.Now;
+
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            await using var transaction = await conn.BeginTransactionAsync();
+
+            try
+            {
+                foreach (var record in records)
+                {
+                    const string sql = @"
+                        UPDATE daily_records
+                        SET unit_name     = @unit,
+                            record_date   = @date::date,
+                            entered       = @entered,
+                            exited        = @exited,
+                            transported   = @transported
+                        WHERE id = @id";
+
+                    using var cmd = new NpgsqlCommand(sql, conn, transaction);
+                    cmd.Parameters.AddWithValue("@id", record.Id);
+                    cmd.Parameters.AddWithValue("@unit", record.UnitName);
+                    cmd.Parameters.AddWithValue("@date", DateTime.Parse(record.RecordDate));
+                    cmd.Parameters.AddWithValue("@entered", record.Entered);
+                    cmd.Parameters.AddWithValue("@exited", record.Exited);
+                    cmd.Parameters.AddWithValue("@transported", record.Transported);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Дни обновлены за {duration:F0}мс, записей: {records.Count}");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                AppLogger.Error($"[{LogContext}] Ошибка обновления дней ", ex);
                 throw;
             }
         }
