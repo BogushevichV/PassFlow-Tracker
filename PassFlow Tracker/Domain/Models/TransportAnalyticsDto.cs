@@ -45,6 +45,7 @@ namespace PassFlow_Tracker.Domain.Models
         int Id,
         int StopNumber,
         string StopName,
+        string Period,
         int Entered,
         int Exited,
         int Transported);
@@ -57,7 +58,8 @@ namespace PassFlow_Tracker.Domain.Models
         int Id,
         int StopNumber,
         string StopName,
-        string Label,       // название + дата/период для отображения
+        string Period,
+        string RouteName,
         int Entered,
         int Exited,
         int Transported);

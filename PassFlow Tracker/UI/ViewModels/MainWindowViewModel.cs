@@ -96,6 +96,16 @@ namespace PassFlow_Tracker.UI.ViewModels
         }
 
         [ObservableProperty]
+        private TopStopsMode currentTopStopsMode = TopStopsMode.AllTime;
+
+        public bool IsRouteColumnVisible => CurrentTopStopsMode == TopStopsMode.PerRecord;
+
+        partial void OnCurrentTopStopsModeChanged(TopStopsMode value)
+        {
+            OnPropertyChanged(nameof(IsRouteColumnVisible));
+        }
+
+        [ObservableProperty]
         private int topN = 10;
 
         [ObservableProperty]
@@ -139,7 +149,7 @@ namespace PassFlow_Tracker.UI.ViewModels
         }
 
         [ObservableProperty]
-        private int calendarYear = 2025;
+        private int calendarYear = 2026;
 
         partial void OnCalendarYearChanged(int value)
         {
@@ -584,6 +594,8 @@ namespace PassFlow_Tracker.UI.ViewModels
                 return;
             }
 
+            CurrentTopStopsMode = (TopStopsMode)result;
+
             ActiveTab = "trip_stops";
 
             try
@@ -612,7 +624,8 @@ namespace PassFlow_Tracker.UI.ViewModels
                             {
                                 StopNumber  = d.StopNumber,
                                 StopName    = d.StopName,
-                                Label       = d.Label,
+                                Period = d.Period,
+                                RouteName = d.RouteName,
                                 Entered     = d.Entered,
                                 Exited      = d.Exited,
                                 Transported = d.Transported
@@ -705,6 +718,8 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Загрузка остановок");
             Status = "Загрузка остановок...";
 
+            CurrentTopStopsMode = TopStopsMode.AllTime;
+
             try
             {
                 await LoadDataToCollection(
@@ -718,7 +733,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                     {
                         var vm = new TripStopRowViewModel();
                         vm.SetOriginalValues(d.Id,
-                            d.StopNumber, d.StopName, label: d.StopName, 
+                            d.StopNumber, d.StopName, d.Period, "",
                             d.Entered, d.Exited, d.Transported);
                         TripStops.Add(vm);
                     });
@@ -955,7 +970,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                                     var vm = new TripStopRowViewModel();
                                     vm.SetOriginalValues(
                                         d.Id,
-                                        d.StopNumber, d.StopName, label: d.StopName,
+                                        d.StopNumber, d.StopName, d.Period, "",
                                         d.Entered, d.Exited, d.Transported);
                                     TripStops.Add(vm);
                                 });
@@ -1249,7 +1264,7 @@ namespace PassFlow_Tracker.UI.ViewModels
             {
                 Id = ts.TripStopId,
                 ts.StopNumber,
-                StopName = ts.Label,
+                ts.StopName,
                 ts.TimeFrom,
                 ts.TimeTo,
                 ts.Entered,
