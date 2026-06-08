@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 /ДОКУМЕНТАЦИЯ.txt
+/PassFlow Tracker/passflow-tracker_1.0
+*.cd
+/PassFlow Tracker/passflow-tracker_1.0.deb
