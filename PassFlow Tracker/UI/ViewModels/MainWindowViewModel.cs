@@ -3,14 +3,12 @@ using Avalonia.Platform.Storage;
 using ClosedXML.Excel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DocumentFormat.OpenXml.Drawing.Charts;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
 using PassFlow_Tracker.Application.Services;
 using PassFlow_Tracker.Application.Services.IPC;
 using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Domain.Models.Communication;
-using PassFlow_Tracker.Infrastructure.Database;
 using PassFlow_Tracker.Infrastructure.Logging;
 using PassFlow_Tracker.UI.Views;
 using SkiaSharp;
@@ -57,7 +55,33 @@ namespace PassFlow_Tracker.UI.ViewModels
 
         private const string LogContext = "MainWindowViewModel";
 
-        public MainWindowViewModel() { }
+        public MainWindowViewModel()
+        {
+            Calendar = new CalendarViewModel(
+                onFilterApplied: () => _ = SetActiveTab(ActiveTab),
+                flowLoader: async (from, to) =>
+                {
+                    var response = await _ipc.SendAsync(new IpcRequest
+                    {
+                        Command = "daily_flow",
+                        Parameters = new()
+                        {
+                            ["from"] = from.ToString("yyyy-MM-dd"),
+                            ["to"] = to.ToString("yyyy-MM-dd")
+                        }
+                    });
+
+                    if (response.Success && response.Data != null)
+                    {
+                        var json = JsonSerializer.Serialize(response.Data);
+                        return JsonSerializer.Deserialize<Dictionary<DateOnly, long>>(json)
+                               ?? new Dictionary<DateOnly, long>();
+                    }
+
+                    return new Dictionary<DateOnly, long>();
+                }
+            );
+        }
 
         [RelayCommand]
         public async Task InitializeAsync()
@@ -136,54 +160,7 @@ namespace PassFlow_Tracker.UI.ViewModels
         public string GradientButtonLabel =>
             GradientActive ? "Вкл. Градиент" : "Выкл. Градиент";
 
-
-        [ObservableProperty]
-        private bool showCalendar;
-
-        [ObservableProperty]
-        private string calendarMode = "days";
-
-        partial void OnCalendarModeChanged(string value)
-        {
-            OnPropertyChanged(nameof(CalendarTitle));
-        }
-
-        [ObservableProperty]
-        private int calendarYear = 2026;
-
-        partial void OnCalendarYearChanged(int value)
-        {
-            OnPropertyChanged(nameof(CalendarTitle));
-        }
-
-        [ObservableProperty]
-        private int calendarMonth = 6;
-
-        partial void OnCalendarMonthChanged(int value)
-        {
-            OnPropertyChanged(nameof(CalendarTitle));
-        }
-
-        public string CalendarTitle
-        {
-            get
-            {
-                string[] months =
-                {
-                "Январь","Февраль","Март","Апрель","Май","Июнь",
-                "Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"
-            };
-
-                if (CalendarMode == "days")
-                    return $"{months[CalendarMonth - 1]} {CalendarYear}";
-
-                if (CalendarMode == "months")
-                    return $"{CalendarYear}";
-
-                return $"{CalendarYear - 5} – {CalendarYear + 6}";
-            }
-        }
-
+        public CalendarViewModel Calendar { get; }
 
         [RelayCommand]
         private void SwitchToTable() => IsTableView = true;
@@ -196,12 +173,6 @@ namespace PassFlow_Tracker.UI.ViewModels
 
         [RelayCommand]
         private void ToggleGradient() => GradientActive = !GradientActive;
-
-        [RelayCommand]
-        private void ToggleCalendar() => ShowCalendar = !ShowCalendar;
-
-        [RelayCommand]
-        private void SetCalendarMode(string mode) => CalendarMode = mode;
 
         [RelayCommand]
         private async Task SetActiveTab(string tab)
@@ -233,8 +204,6 @@ namespace PassFlow_Tracker.UI.ViewModels
 
             AppLogger.Info($"[{LogContext}] Переключение на вкладку: {tab}");
 
-            ActiveTab = tab;
-
             try
             {
                 switch (tab)
@@ -264,38 +233,6 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
         
-        [RelayCommand]
-        private void CalendarPrev()
-        {
-            if (CalendarMode == "days")
-            {
-                CalendarMonth--;
-                if (CalendarMonth < 1)
-                {
-                    CalendarMonth = 12;
-                    CalendarYear--;
-                }
-            }
-            else if (CalendarMode == "months") CalendarYear--;
-            else CalendarYear -= 12;
-        }
-
-        [RelayCommand]
-        private void CalendarNext()
-        {
-            if (CalendarMode == "days")
-            {
-                CalendarMonth++;
-                if (CalendarMonth > 12)
-                {
-                    CalendarMonth = 1;
-                    CalendarYear++;
-                }
-            }
-            else if (CalendarMode == "months") CalendarYear++;
-            else CalendarYear += 12;
-        }
-
         [RelayCommand]
         private async Task LoadJson()
         {
@@ -501,7 +438,17 @@ namespace PassFlow_Tracker.UI.ViewModels
             List<RouteItem>? routes = null;
             try
             {
-                var routesResp = await _ipc.SendAsync(new IpcRequest { Command = "routes" });
+                string? dateFilterJson = GetDateFilter();
+
+                var parameters = new Dictionary<string, string>();
+                if (dateFilterJson != null) parameters["dateFilter"] = dateFilterJson;
+
+                var routesResp = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "routes",
+                    Parameters = parameters.Count > 0 ? parameters : null
+                });
+
                 if (routesResp.Success && routesResp.Data != null)
                 {
                     var json = JsonSerializer.Serialize(routesResp.Data, JsonSerializerDefaults.OutputOptions);
@@ -712,6 +659,20 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
+        private string? GetDateFilter()
+        {
+            if (Calendar.IsFilterApplied && Calendar.FilterStartDate != null && Calendar.FilterEndDate != null)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    from = Calendar.FilterStartDate.Value.ToString("yyyy-MM-dd"),
+                    to = Calendar.FilterEndDate.Value.ToString("yyyy-MM-dd")
+                });
+            }
+
+            return null;
+        } 
+
         [RelayCommand]
         private async Task LoadTripStops()
         {
@@ -720,11 +681,14 @@ namespace PassFlow_Tracker.UI.ViewModels
 
             CurrentTopStopsMode = TopStopsMode.AllTime;
 
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                 command: "trip_stops",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
@@ -754,11 +718,14 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Загрузка всех данных (дерево)");
             Status = "Загрузка всех данных...";
 
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                     command: "all_data",
                     idsJson: null,
+                    dateFilterJson: dateFilterJson,
                     onSuccess: json =>
                     {
                         var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
@@ -835,11 +802,15 @@ namespace PassFlow_Tracker.UI.ViewModels
         private async Task LoadDailyRecords()        {
             AppLogger.Info($"[{LogContext}] Загрузка дней");
             Status = "Загрузка дней...";
+
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                 command: "daily_records",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
@@ -873,11 +844,14 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Загрузка кругов");
             Status = "Загрузка кругов...";
 
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                 command: "rounds",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
@@ -914,11 +888,14 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Загрузка рейсов");
             Status = "Загрузка рейсов...";
 
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                 command: "trips",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<TripRow>>(json);
@@ -961,6 +938,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "trip_stops",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
@@ -983,6 +961,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "all_data",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
@@ -1052,6 +1031,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "trips",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<TripRow>>(json);
@@ -1080,6 +1060,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "rounds",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
@@ -1108,6 +1089,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "daily_records",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
@@ -1140,16 +1122,15 @@ namespace PassFlow_Tracker.UI.ViewModels
         private async Task LoadDataToCollection(
             string command,
             string? idsJson,
+            string? dateFilterJson,
             Action<string> onSuccess,
             string errorMessage)
         {
             try
             {
                 var parameters = new Dictionary<string, string>();
-                if (idsJson != null)
-                {
-                    parameters["ids"] = idsJson;
-                }
+                if (idsJson != null) parameters["ids"] = idsJson;
+                if (dateFilterJson != null) parameters["dateFilter"] = dateFilterJson; 
 
                 var response = await _ipc.SendAsync(new IpcRequest
                 {

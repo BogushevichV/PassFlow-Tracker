@@ -14,7 +14,6 @@
         Background="#F8FAFC">
 
   <Window.Styles>
-      <!-- GLOBAL TEXT COLOR FIX -->
     <Style Selector="TextBlock">
       <Setter Property="Foreground" Value="#334155"/>
     </Style>
@@ -54,6 +53,16 @@
     <Style Selector="Button.ribbon:pressed /template/ ContentPresenter">
       <Setter Property="Background" Value="#E2E8F0"/>
     </Style>
+
+    <Style Selector="Button.calendar-day">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="2,5"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+
     <!-- Tab Button -->
     <Style Selector="Button.tab">
       <Setter Property="Background" Value="Transparent"/>
@@ -297,7 +306,7 @@
           <!-- GROUP: Календарь -->
           <StackPanel Margin="0,0,16,0">
             <Grid Margin="0,0,0,4">
-              <Button Classes="ribbon" Command="{Binding ToggleCalendarCommand}">
+              <Button Classes="ribbon" Command="{Binding Calendar.ToggleCalendarCommand}">
                 <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center" Width="60">
                   <PathIcon Data="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"
                             Width="18" Height="18" Foreground="#0891B2"/>
@@ -306,10 +315,15 @@
               </Button>
 
               <!-- Calendar Popover -->
-              <Popup IsOpen="{Binding ShowCalendar}" Placement="Bottom"
+              <Popup IsOpen="{Binding Calendar.ShowCalendar}" Placement="Bottom"
                      IsLightDismissEnabled="True">
+                <Interaction.Behaviors>
+                    <EventTriggerBehavior EventName="Closed">
+                        <InvokeCommandAction Command="{Binding Calendar.CloseCalendarCommand}"/>
+                    </EventTriggerBehavior>
+                </Interaction.Behaviors>
                 <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1"
-                        CornerRadius="8" Padding="0" Width="300"
+                        CornerRadius="8" Padding="0" Width="350"
                         BoxShadow="0 8 24 0 #1A000000">
                   <StackPanel>
                     <!-- Calendar Mode Switcher -->
@@ -317,19 +331,19 @@
                       <Grid ColumnDefinitions="*,*,*">
                         <Button Grid.Column="0" Padding="6,4" HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
-                                Command="{Binding SetCalendarModeCommand}" CommandParameter="days"
+                                Command="{Binding Calendar.SetCalendarModeCommand}" CommandParameter="days"
                                 CornerRadius="4" Background="#DBEAFE" BorderThickness="0">
                           <TextBlock Text="Дни" Foreground="#1D4ED8"/>
                         </Button>
                         <Button Grid.Column="1" Padding="6,4" HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
-                                Command="{Binding SetCalendarModeCommand}" CommandParameter="months"
+                                Command="{Binding Calendar.SetCalendarModeCommand}" CommandParameter="months"
                                 CornerRadius="4" Background="Transparent" BorderThickness="0">
                           <TextBlock Text="Месяцы"/>
                         </Button>
                         <Button Grid.Column="2" Padding="6,4" HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
-                                Command="{Binding SetCalendarModeCommand}" CommandParameter="years"
+                                Command="{Binding Calendar.SetCalendarModeCommand}" CommandParameter="years"
                                 CornerRadius="4" Background="Transparent" BorderThickness="0">
                           <TextBlock Text="Годы"/>
                         </Button>
@@ -339,15 +353,16 @@
                     <!-- Calendar Navigation Header -->
                     <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,10">
                       <Button Grid.Column="0" Classes="ribbon" Padding="4"
-                              Command="{Binding CalendarPrevCommand}">
+                              Command="{Binding Calendar.CalendarPrevCommand}">
                         <PathIcon Data="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"
                                   Width="16" Height="16"/>
                       </Button>
+
                       <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
                                  FontWeight="SemiBold" FontSize="13" Foreground="#1E293B"
-                                 Text="{Binding CalendarTitle}"/>
+                                 Text="{Binding Calendar.CalendarTitle}"/>
                       <Button Grid.Column="2" Classes="ribbon" Padding="4"
-                              Command="{Binding CalendarNextCommand}">
+                              Command="{Binding Calendar.CalendarNextCommand}">
                         <PathIcon Data="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"
                                   Width="16" Height="16"/>
                       </Button>
@@ -366,60 +381,30 @@
                         <TextBlock Grid.Column="6" Text="Вс" FontSize="10" Foreground="#EF4444" HorizontalAlignment="Center"/>
                       </Grid>
                       <!-- Week rows (static layout for visual) -->
-                      <ItemsControl>
-                        <ItemsControl.Items>
-                          <!-- Row 1 -->
-                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
-                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="1" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="2" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="3" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="4" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
-                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="5" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
-                          </Grid>
-                          <!-- Row 2 -->
-                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
-                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="6" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="7" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="8" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="9" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="10" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="11" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
-                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="12" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
-                          </Grid>
-                          <!-- Row 3 -->
-                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
-                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="13" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="14" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="15" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="16" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="17" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="18" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
-                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="19" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
-                          </Grid>
-                          <!-- Row 4 - with selected range highlight -->
-                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
-                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="20" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="21" BorderThickness="0" Background="#DBEAFE" Foreground="#1D4ED8" FontWeight="SemiBold"/>
-                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="22" BorderThickness="0" Background="#BFDBFE" Foreground="#1D4ED8"/>
-                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="23" BorderThickness="0" Background="#BFDBFE" Foreground="#1D4ED8"/>
-                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="24" BorderThickness="0" Background="#DBEAFE" Foreground="#1D4ED8" FontWeight="SemiBold"/>
-                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="25" BorderThickness="0" Background="Transparent" Foreground="#64748B"/>
-                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="26" BorderThickness="0" Background="Transparent" Foreground="#EF4444"/>
-                          </Grid>
-                          <!-- Row 5 -->
-                          <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,1">
-                            <Button Grid.Column="0" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="27" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="1" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="28" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="2" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="29" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="3" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="30" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="4" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="5" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
-                            <Button Grid.Column="6" Classes="ribbon" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="2,5" Content="" BorderThickness="0" Background="Transparent"/>
-                          </Grid>
-                        </ItemsControl.Items>
-                      </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding Calendar.CalendarDays}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="7" Rows="6"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding Day}"
+                                        Classes="calendar-day"                                        
+                                        Command="{Binding $parent[Window].DataContext.Calendar.SelectCalendarDayCommand}"
+                                        CommandParameter="{Binding}"
+                                        IsVisible="{Binding IsCurrentMonth}"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        FontSize="12" Padding="2,5"
+                                        BorderThickness="3"
+                                        Background="{Binding BackgroundColor}"
+                                        BorderBrush="{Binding BorderColor}"
+                                        Foreground="{Binding TextColor}">
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     </StackPanel>
 
                     <!-- MONTHS MODE (static visual) -->
@@ -443,10 +428,12 @@
                     <!-- Footer buttons -->
                     <Border BorderBrush="#F1F5F9" BorderThickness="0,1,0,0" Padding="12,8">
                       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                        <Button Classes="ribbon" Padding="10,5" FontSize="12" Content="Сбросить"/>
+                        <Button Classes="ribbon" Padding="10,5" FontSize="12" Content="Сбросить" 
+                                Command="{Binding Calendar.ResetDateFilterCommand}"/>
                         <Button Padding="10,5" FontSize="12" FontWeight="Medium"
                                 Background="#2563EB" Foreground="White" CornerRadius="4"
-                                BorderThickness="0" Content="Применить"/>
+                                BorderThickness="0" Content="Применить"
+                                Command="{Binding Calendar.ApplyFilterCommand}"/>
                       </StackPanel>
                     </Border>
                   </StackPanel>

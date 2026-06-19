@@ -44,7 +44,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                     "import_json"         => await ImportJson(request),
                     "peak_hours"          => await GetPeakHours(),
                     "peak_hours_chart"    => await GetPeakHoursChart(request),
-                    "routes"              => await GetRoutes(),
+                    "routes"              => await GetRoutes(request),
                     "top_stops"           => await GetTopStops(request),
                     "top_stops_detailed"  => await GetTopStopsDetailed(request),
                     "low_activity"        => await GetLowTrips(request),
@@ -52,6 +52,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
                     "rounds"              => await GetRounds(request),
                     "trips"               => await GetTrips(request),
                     "daily_records"       => await GetDailyRecords(request),
+                    "daily_flow"          => await GetDailyFlow(request),
                     "all_data"            => await GetAllData(request),
                     "update_trip_stops"   => await UpdateTripStops(request),
                     "update_trips"        => await UpdateTrips(request),
@@ -86,7 +87,6 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         {
             var path = req.Parameters?["path"];
 
-            // Проверка на пустой путь
             if (string.IsNullOrEmpty(path))
             {
                 AppLogger.Warning($"[{LogContext}] Импорт JSON: путь не указан");
@@ -150,7 +150,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             return new IpcResponse { Success = true, Data = data };
         }
 
-        private async Task<IpcResponse> GetRoutes()
+        private async Task<IpcResponse> GetRoutes(IpcRequest req)
         {
             AppLogger.Info($"[{LogContext}] Получение маршрутов");
             var data = await _analytics.GetRoutesAsync();
@@ -195,8 +195,10 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         private async Task<IpcResponse> GetTripStops(IpcRequest req)
         {
             var ids = DeserializeIds(req);
+            var (from, to) = ParseDateFilter(DeserializeDateFilter(req));
+
             AppLogger.Info($"[{LogContext}] Получение списка остановок");
-            var data = await _analytics.GetTripStopsAsync(ids);
+            var data = await _analytics.GetTripStopsAsync(ids, from, to);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} остановок");
 
             return new IpcResponse { Success = true, Data = data };
@@ -205,8 +207,10 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         private async Task<IpcResponse> GetRounds(IpcRequest req)
         {
             var ids = DeserializeIds(req);
+            var (from, to) = ParseDateFilter(DeserializeDateFilter(req));
+
             AppLogger.Info($"[{LogContext}] Получение кругов");
-            var data = await _analytics.GetRoundsAsync(ids);
+            var data = await _analytics.GetRoundsAsync(ids, from, to);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} кругов");
 
             return new IpcResponse { Success = true, Data = data };
@@ -215,8 +219,10 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         private async Task<IpcResponse> GetTrips(IpcRequest req)
         {
             var ids = DeserializeIds(req);
+            var (from, to) = ParseDateFilter(DeserializeDateFilter(req));
+
             AppLogger.Info($"[{LogContext}] Получение рейсов");
-            var data = await _analytics.GetTripsAsync(ids);
+            var data = await _analytics.GetTripsAsync(ids, from, to);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} рейсов");
 
             return new IpcResponse { Success = true, Data = data };
@@ -225,17 +231,32 @@ namespace PassFlow_Tracker.Domain.Models.Communication
         private async Task<IpcResponse> GetDailyRecords(IpcRequest req)
         {
             var ids = DeserializeIds(req);
+            var (from, to) = ParseDateFilter(DeserializeDateFilter(req));
+
             AppLogger.Info($"[{LogContext}] Получение дней");
-            var data = await _analytics.GetDailyRecordsAsync(ids);
+            var data = await _analytics.GetDailyRecordsAsync(ids, from, to);
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} дней");
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetDailyFlow(IpcRequest req)
+        {
+            var from = DateOnly.Parse(req.Parameters?["from"]!);
+            var to = DateOnly.Parse(req.Parameters?["to"]!);
+
+            AppLogger.Info($"[{LogContext}] Получение пассажиропотока для заданного диапазона ({from} - {to})");
+            var data = await _analytics.GetDailyFlowAsync(from, to);
+            AppLogger.Info($"[{LogContext}] Найдено {data.Count} пассажиропотоков");
             return new IpcResponse { Success = true, Data = data };
         }
 
         private async Task<IpcResponse> GetAllData(IpcRequest req)
         {
             var ids = DeserializeIds(req);
+            var (from, to) = ParseDateFilter(DeserializeDateFilter(req));
+
             AppLogger.Info($"[{LogContext}] Получение всех данных (дерево)");
-            var data = await _analytics.GetAllDataAsync(ids);
+            var data = await _analytics.GetAllDataAsync(ids, from, to);
             AppLogger.Info($"[{LogContext}] Загружено {data.Count} дней");
             return new IpcResponse { Success = true, Data = data };
         }
@@ -248,6 +269,32 @@ namespace PassFlow_Tracker.Domain.Models.Communication
 
             return JsonSerializer.Deserialize<List<int>>(idsJson);
         }
+
+        private static (DateOnly? From, DateOnly? To) ParseDateFilter(DateFilter? filter)
+        {
+            if (filter == null) return (null, null);
+
+            DateOnly? from = null;
+            DateOnly? to = null;
+
+            if (!string.IsNullOrEmpty(filter.From))
+                from = DateOnly.Parse(filter.From);
+
+            if (!string.IsNullOrEmpty(filter.To))
+                to = DateOnly.Parse(filter.To);
+
+            return (from, to);
+        }
+
+        private DateFilter? DeserializeDateFilter(IpcRequest req)
+        {
+            var filterJson = req.Parameters?.GetValueOrDefault("dateFilter");
+            if (string.IsNullOrEmpty(filterJson)) return null;
+
+            return JsonSerializer.Deserialize<DateFilter>(filterJson, JsonSerializerDefaults.SafeOptions);
+        }
+
+        public record DateFilter(string From, string To);
 
         private async Task<IpcResponse> UpdateTripStops(IpcRequest req)
         {
