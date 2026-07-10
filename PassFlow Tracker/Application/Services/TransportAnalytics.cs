@@ -93,7 +93,8 @@ namespace PassFlow_Tracker.Application.Services
 					JOIN trips t ON ts.trip_id = t.id
 					JOIN rounds r ON t.round_id = r.id
 					JOIN daily_records dr ON r.daily_record_id = dr.id
-					WHERE dr.unit_name = @unit
+					JOIN vehicles v ON dr.vehicle_id = v.id
+					WHERE v.unit_name = @unit
 					GROUP BY hr";
 					cmd = new NpgsqlCommand(sql, conn);
 					cmd.Parameters.AddWithValue("@unit", unitName);
@@ -137,11 +138,12 @@ namespace PassFlow_Tracker.Application.Services
 				await conn.OpenAsync();
 
 				const string sql = @"
-				SELECT DISTINCT dr.unit_name,
-					   r.start_point, r.end_point
-				FROM daily_records dr
-				JOIN rounds r ON r.daily_record_id = dr.id
-				ORDER BY dr.unit_name, r.start_point";
+					SELECT DISTINCT v.unit_name,
+						   r.start_point, r.end_point
+					FROM daily_records dr
+					JOIN rounds r ON r.daily_record_id = dr.id
+					JOIN vehicles v ON dr.vehicle_id = v.id
+					ORDER BY v.unit_name, r.start_point";
 
 				using var cmd = new NpgsqlCommand(sql, conn);
 				using var rdr = await cmd.ExecuteReaderAsync();
@@ -162,8 +164,484 @@ namespace PassFlow_Tracker.Application.Services
 			}
 		}
 
-		// 2. Анализ загруженности остановок (Топ-10)
-		public async Task<List<StopLoad>> GetTopStopsAsync(int limit = 10)
+        public async Task<List<RouteInfo>> GetDistinctRoutesAsync()
+        {
+            var data = new List<RouteInfo>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string sql = @"
+        SELECT DISTINCT 
+               COALESCE(t.route_number, '') AS route_number,
+               t.start_point, 
+               t.end_point
+        FROM trips t
+        WHERE t.start_point IS NOT NULL AND t.end_point IS NOT NULL
+        ORDER BY COALESCE(t.route_number, ''), t.start_point, t.end_point";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            using var rdr = await cmd.ExecuteReaderAsync();
+
+            while (await rdr.ReadAsync())
+                data.Add(new RouteInfo(
+                    rdr["route_number"].ToString() ?? "",
+                    rdr["start_point"].ToString() ?? "",
+                    rdr["end_point"].ToString() ?? ""
+                ));
+
+            return data;
+        }
+
+        public async Task<List<RouteSchemeData>> GetRouteSchemeAllTimeAsync(
+    string start, string end, int? vehicleId = null)
+        {
+            var data = new List<RouteSchemeData>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            var sql = @"
+        SELECT ts.stop_number, ts.stop_name,
+               SUM(ts.entered) AS total_entered,
+               SUM(ts.exited) AS total_exited,
+               AVG(ts.transported) AS avg_transported";
+
+            if (vehicleId.HasValue)
+            {
+                sql += @",
+               AVG(ts.transported) * 100.0 / vm.capacity AS fill_percent
+        FROM trip_stops ts
+        JOIN trips t ON ts.trip_id = t.id
+        JOIN rounds r ON t.round_id = r.id
+        JOIN daily_records dr ON r.daily_record_id = dr.id
+        JOIN vehicles v ON dr.vehicle_id = v.id
+        JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+        WHERE t.start_point = @start AND t.end_point = @end
+          AND ts.is_duplicate = FALSE
+          AND dr.vehicle_id = @vehicleId
+        GROUP BY ts.stop_number, ts.stop_name, vm.capacity
+        ORDER BY ts.stop_number";
+            }
+            else
+            {
+                sql += @",
+               AVG(ts.transported) * 100.0 / AVG(vm.capacity) AS fill_percent
+        FROM trip_stops ts
+        JOIN trips t ON ts.trip_id = t.id
+        JOIN rounds r ON t.round_id = r.id
+        JOIN daily_records dr ON r.daily_record_id = dr.id
+        JOIN vehicles v ON dr.vehicle_id = v.id
+        JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+        WHERE t.start_point = @start AND t.end_point = @end
+          AND ts.is_duplicate = FALSE
+        GROUP BY ts.stop_number, ts.stop_name
+        ORDER BY ts.stop_number";
+            }
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@start", start);
+            cmd.Parameters.AddWithValue("@end", end);
+            if (vehicleId.HasValue) cmd.Parameters.AddWithValue("@vehicleId", vehicleId.Value);
+
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new RouteSchemeData(
+                    Convert.ToInt32(rdr["stop_number"]),
+                    rdr["stop_name"].ToString() ?? "",
+                    Convert.ToInt32(rdr["total_entered"]),
+                    Convert.ToInt32(rdr["total_exited"]),
+                    Convert.ToInt32(rdr["avg_transported"]),
+                    Math.Round(Convert.ToDouble(rdr["fill_percent"]), 1)
+                ));
+
+            return data;
+        }
+
+        public async Task<List<RouteSchemeData>> GetRouteSchemeDayAsync(
+            string start, string end, DateOnly date, int? vehicleId = null)
+        {
+            var data = new List<RouteSchemeData>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            var sql = @"
+        SELECT ts.stop_number, ts.stop_name,
+               SUM(ts.entered) AS total_entered,
+               SUM(ts.exited) AS total_exited,
+               AVG(ts.transported) AS avg_transported";
+
+            if (vehicleId.HasValue)
+            {
+                sql += @",
+               AVG(ts.transported) * 100.0 / vm.capacity AS fill_percent
+        FROM trip_stops ts
+        JOIN trips t ON ts.trip_id = t.id
+        JOIN rounds r ON t.round_id = r.id
+        JOIN daily_records dr ON r.daily_record_id = dr.id
+        JOIN vehicles v ON dr.vehicle_id = v.id
+        JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+        WHERE t.start_point = @start AND t.end_point = @end
+          AND ts.is_duplicate = FALSE
+          AND dr.record_date = @date
+          AND dr.vehicle_id = @vehicleId
+        GROUP BY ts.stop_number, ts.stop_name, vm.capacity
+        ORDER BY ts.stop_number";
+            }
+            else
+            {
+                sql += @",
+               AVG(ts.transported) * 100.0 / AVG(vm.capacity) AS fill_percent
+        FROM trip_stops ts
+        JOIN trips t ON ts.trip_id = t.id
+        JOIN rounds r ON t.round_id = r.id
+        JOIN daily_records dr ON r.daily_record_id = dr.id
+        JOIN vehicles v ON dr.vehicle_id = v.id
+        JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+        WHERE t.start_point = @start AND t.end_point = @end
+          AND ts.is_duplicate = FALSE
+          AND dr.record_date = @date
+        GROUP BY ts.stop_number, ts.stop_name
+        ORDER BY ts.stop_number";
+            }
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@start", start);
+            cmd.Parameters.AddWithValue("@end", end);
+            cmd.Parameters.AddWithValue("@date", date.ToDateTime(TimeOnly.MinValue));
+            if (vehicleId.HasValue) cmd.Parameters.AddWithValue("@vehicleId", vehicleId.Value);
+
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new RouteSchemeData(
+                    Convert.ToInt32(rdr["stop_number"]),
+                    rdr["stop_name"].ToString() ?? "",
+                    Convert.ToInt32(rdr["total_entered"]),
+                    Convert.ToInt32(rdr["total_exited"]),
+                    Convert.ToInt32(rdr["avg_transported"]),
+                    Math.Round(Convert.ToDouble(rdr["fill_percent"]), 1)
+                ));
+
+            return data;
+        }
+
+        public async Task<List<RouteSchemeData>> GetRouteSchemeTripAsync(int tripId, int? vehicleId = null)
+        {
+            var data = new List<RouteSchemeData>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            string sql;
+            NpgsqlCommand cmd;
+
+            if (vehicleId.HasValue)
+            {
+                sql = @"
+					SELECT ts.stop_number, ts.stop_name,
+						   ts.entered,
+						   ts.exited,
+						   ts.transported,
+						   ts.transported * 100.0 / vm.capacity AS fill_percent
+					FROM trip_stops ts
+					JOIN trips t ON ts.trip_id = t.id
+					JOIN rounds r ON t.round_id = r.id
+					JOIN daily_records dr ON r.daily_record_id = dr.id
+					JOIN vehicles v ON v.id = @vehicleId
+					JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+					WHERE ts.trip_id = @tripId
+					  AND ts.is_duplicate = FALSE
+					ORDER BY ts.stop_number";
+
+                cmd = new NpgsqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@tripId", tripId);
+                cmd.Parameters.AddWithValue("@vehicleId", vehicleId.Value);
+            }
+            else
+            {
+                sql = @"
+					SELECT ts.stop_number, ts.stop_name,
+						   ts.entered,
+						   ts.exited,
+						   ts.transported,
+						   ts.transported * 100.0 / vm.capacity AS fill_percent
+					FROM trip_stops ts
+					JOIN trips t ON ts.trip_id = t.id
+					JOIN rounds r ON t.round_id = r.id
+					JOIN daily_records dr ON r.daily_record_id = dr.id
+					JOIN vehicles v ON dr.vehicle_id = v.id
+					JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+					WHERE ts.trip_id = @tripId
+					  AND ts.is_duplicate = FALSE
+					ORDER BY ts.stop_number";
+
+                cmd = new NpgsqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@tripId", tripId);
+            }
+
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new RouteSchemeData(
+                    Convert.ToInt32(rdr["stop_number"]),
+                    rdr["stop_name"].ToString() ?? "",
+                    Convert.ToInt32(rdr["entered"]),
+                    Convert.ToInt32(rdr["exited"]),
+                    Convert.ToInt32(rdr["transported"]),
+                    Math.Round(Convert.ToDouble(rdr["fill_percent"]), 1)
+                ));
+
+            return data;
+        }
+
+        public async Task<List<DaySummary>> GetRouteDaysAsync(string start, string end)
+        {
+            var daysDict = new Dictionary<string, DaySummary>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string daysSql = @"
+				SELECT dr.record_date::DATE AS date,
+					   v.id AS vehicle_id,
+					   v.unit_name AS vehicle_name,
+					   vm.name AS model_name,
+					   vm.seats,
+					   vm.capacity,
+					   COUNT(DISTINCT t.id) AS trip_count
+				FROM daily_records dr
+				JOIN rounds r ON r.daily_record_id = dr.id
+				JOIN trips t ON t.round_id = r.id
+				JOIN vehicles v ON dr.vehicle_id = v.id
+				JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+				WHERE t.start_point = @start AND t.end_point = @end
+				GROUP BY dr.record_date, dr.vehicle_id, v.id, v.unit_name, vm.name, vm.seats, vm.capacity
+				ORDER BY dr.record_date, v.unit_name";
+
+            using var cmd = new NpgsqlCommand(daysSql, conn);
+            cmd.Parameters.AddWithValue("@start", start);
+            cmd.Parameters.AddWithValue("@end", end);
+
+            var vehicleRows = new List<(string Date, int VehicleId, string VehicleName, string ModelName, int Seats, int Capacity, int TripCount)>();
+
+            using (var rdr = await cmd.ExecuteReaderAsync())
+            {
+                while (await rdr.ReadAsync())
+                {
+                    vehicleRows.Add((
+                        ((DateOnly)rdr["date"]).ToString("dd.MM.yyyy"),
+                        Convert.ToInt32(rdr["vehicle_id"]),
+                        rdr["vehicle_name"].ToString() ?? "",
+                        rdr["model_name"].ToString() ?? "",
+                        Convert.ToInt32(rdr["seats"]),
+                        Convert.ToInt32(rdr["capacity"]),
+                        Convert.ToInt32(rdr["trip_count"])
+                    ));
+                }
+            } 
+
+            foreach (var row in vehicleRows)
+            {
+                if (!daysDict.TryGetValue(row.Date, out var day))
+                {
+                    day = new DaySummary(row.Date, 0, new List<DayVehicleInfo>(), new List<RouteSchemeData>());
+                    daysDict[row.Date] = day;
+                }
+
+                day.Vehicles.Add(new DayVehicleInfo(row.VehicleId, row.VehicleName, row.ModelName, row.Seats, row.Capacity, row.TripCount));
+            }
+
+            const string stopsSql = @"
+				SELECT ts.stop_number, ts.stop_name,
+					   SUM(ts.entered) AS total_entered,
+					   SUM(ts.exited) AS total_exited,
+					   AVG(ts.transported) AS avg_transported,
+					   AVG(ts.transported) * 100.0 / AVG(vm.capacity) AS fill_percent
+				FROM trip_stops ts
+				JOIN trips t ON ts.trip_id = t.id
+				JOIN rounds r ON t.round_id = r.id
+				JOIN daily_records dr ON r.daily_record_id = dr.id
+				JOIN vehicles v ON dr.vehicle_id = v.id
+				JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+				WHERE t.start_point = @start AND t.end_point = @end
+				  AND dr.record_date = @date
+				  AND ts.is_duplicate = FALSE
+				GROUP BY ts.stop_number, ts.stop_name
+				ORDER BY ts.stop_number";
+
+            foreach (var (dateStr, day) in daysDict)
+            {
+                var date = DateOnly.ParseExact(dateStr, "dd.MM.yyyy");
+
+                using var stopsCmd = new NpgsqlCommand(stopsSql, conn);
+                stopsCmd.Parameters.AddWithValue("@start", start);
+                stopsCmd.Parameters.AddWithValue("@end", end);
+                stopsCmd.Parameters.AddWithValue("@date", date.ToDateTime(TimeOnly.MinValue));
+
+                using var stopsRdr = await stopsCmd.ExecuteReaderAsync();
+                var stops = new List<RouteSchemeData>();
+                while (await stopsRdr.ReadAsync())
+                {
+                    stops.Add(new RouteSchemeData(
+                        Convert.ToInt32(stopsRdr["stop_number"]),
+                        stopsRdr["stop_name"].ToString() ?? "",
+                        Convert.ToInt32(stopsRdr["total_entered"]),
+                        Convert.ToInt32(stopsRdr["total_exited"]),
+                        Convert.ToInt32(stopsRdr["avg_transported"]),
+                        Math.Round(Convert.ToDouble(stopsRdr["fill_percent"]), 1)
+                    ));
+                }
+				
+                daysDict[dateStr] = day with { Stops = stops, TripCount = day.Vehicles.Sum(v => v.TripCount) };
+            }
+
+            return daysDict.Values.OrderBy(d => d.Date).ToList();
+        }
+
+        public async Task<List<TripSummary>> GetRouteTripsAsync(string start, string end, DateOnly date)
+        {
+            var data = new List<TripSummary>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string sql = @"
+				SELECT t.id AS trip_id,
+					   t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
+					   v.unit_name AS vehicle_name,
+					   vm.name AS model_name,
+					   vm.capacity
+				FROM trips t
+				JOIN rounds r ON t.round_id = r.id
+				JOIN daily_records dr ON r.daily_record_id = dr.id
+				JOIN vehicles v ON dr.vehicle_id = v.id
+				JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+				WHERE t.start_point = @start AND t.end_point = @end
+				  AND dr.record_date = @date
+				ORDER BY t.time_from";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@start", start);
+            cmd.Parameters.AddWithValue("@end", end);
+            cmd.Parameters.AddWithValue("@date", date.ToDateTime(TimeOnly.MinValue));
+
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new TripSummary(
+                    Convert.ToInt32(rdr["trip_id"]),
+                    ((DateTime)rdr["tf"]).ToString("HH:mm"),
+                    rdr["vehicle_name"].ToString() ?? "",
+                    rdr["model_name"].ToString() ?? "",
+                    Convert.ToInt32(rdr["capacity"])
+                ));
+
+            return data;
+        }
+
+        public async Task<List<VehicleInfo>> GetRouteVehiclesAsync(string start, string end, DateOnly date)
+        {
+            var data = new List<VehicleInfo>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string sql = @"
+				SELECT DISTINCT v.id, v.unit_name, vm.id AS model_id, vm.name AS model_name,
+					   vm.seats, vm.capacity, v.description
+				FROM vehicles v
+				JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+				JOIN daily_records dr ON dr.vehicle_id = v.id
+				JOIN rounds r ON r.daily_record_id = dr.id
+				JOIN trips t ON t.round_id = r.id
+				WHERE t.start_point = @start AND t.end_point = @end
+				  AND dr.record_date = @date
+				ORDER BY v.unit_name";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@start", start);
+            cmd.Parameters.AddWithValue("@end", end);
+            cmd.Parameters.AddWithValue("@date", date.ToDateTime(TimeOnly.MinValue));
+
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+                data.Add(new VehicleInfo(
+                    (int)rdr["id"],
+                    rdr["unit_name"].ToString() ?? "",
+                    (int)rdr["model_id"],
+                    rdr["model_name"].ToString() ?? "",
+                    (int)rdr["seats"],
+                    (int)rdr["capacity"],
+                    rdr["description"] as string
+                ));
+
+            return data;
+        }
+
+        public async Task<List<TripDetailSummary>> GetRouteTripsDetailedAsync(
+    string start, string end, DateOnly date)
+        {
+            var trips = new Dictionary<int, TripDetailSummary>();
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+
+            const string sql = @"
+				SELECT t.id AS trip_id,
+					   t.time_from AT TIME ZONE 'Europe/Moscow' AS trip_tf,
+					   t.time_to   AT TIME ZONE 'Europe/Moscow' AS trip_tt,
+					   v.unit_name AS vehicle_name,
+					   vm.name AS model_name,
+					   vm.capacity, vm.seats,
+					   ts.stop_number, ts.stop_name,
+					   ts.time_from AT TIME ZONE 'Europe/Moscow' AS stop_tf,
+					   ts.time_to   AT TIME ZONE 'Europe/Moscow' AS stop_tt,
+					   ts.entered, ts.exited, ts.transported,
+					   ts.transported * 100.0 / vm.capacity AS fill_percent
+				FROM trips t
+				JOIN rounds r ON t.round_id = r.id
+				JOIN daily_records dr ON r.daily_record_id = dr.id
+				JOIN vehicles v ON dr.vehicle_id = v.id
+				JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+				JOIN trip_stops ts ON ts.trip_id = t.id
+				WHERE t.start_point = @start AND t.end_point = @end
+				  AND dr.record_date = @date
+				  AND ts.is_duplicate = FALSE
+				ORDER BY t.time_from, ts.stop_number";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@start", start);
+            cmd.Parameters.AddWithValue("@end", end);
+            cmd.Parameters.AddWithValue("@date", date.ToDateTime(TimeOnly.MinValue));
+
+            using var rdr = await cmd.ExecuteReaderAsync();
+            while (await rdr.ReadAsync())
+            {
+                int tripId = Convert.ToInt32(rdr["trip_id"]);
+
+                if (!trips.TryGetValue(tripId, out var trip))
+                {
+                    trip = new TripDetailSummary(
+                        tripId,
+                        ((DateTime)rdr["trip_tf"]).ToString("HH:mm:ss"),
+                        ((DateTime)rdr["trip_tt"]).ToString("HH:mm:ss"),
+                        rdr["vehicle_name"].ToString() ?? "",
+                        rdr["model_name"].ToString() ?? "",
+                        Convert.ToInt32(rdr["capacity"]),
+                        Convert.ToInt32(rdr["seats"]),
+                        new List<TripStopDetail>()
+                    );
+                    trips[tripId] = trip;
+                }
+
+                trip.Stops.Add(new TripStopDetail(
+                    Convert.ToInt32(rdr["stop_number"]),
+                    rdr["stop_name"].ToString() ?? "",
+                    ((DateTime)rdr["stop_tf"]).ToString("HH:mm:ss"),
+                    ((DateTime)rdr["stop_tt"]).ToString("HH:mm:ss"),
+                    Convert.ToInt32(rdr["entered"]),
+                    Convert.ToInt32(rdr["exited"]),
+                    Convert.ToInt32(rdr["transported"]),
+                    Math.Round(Convert.ToDouble(rdr["fill_percent"]), 1)
+                ));
+            }
+
+            return trips.Values.OrderBy(t => t.TimeFrom).ToList();
+        }
+
+        // 2. Анализ загруженности остановок (Топ-10)
+        public async Task<List<StopLoad>> GetTopStopsAsync(int limit = 10)
 		{
 			AppLogger.Info($"[{LogContext}] Запрос топ-{limit} остановок");
 			var startTime = DateTime.Now;
@@ -214,7 +692,7 @@ namespace PassFlow_Tracker.Application.Services
 				await conn.OpenAsync();
 
 				const string sql = @"
-				SELECT dr.unit_name,
+				SELECT v.unit_name,
 					   t.start_point, t.end_point,
 					   t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
 					   t.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
@@ -222,6 +700,7 @@ namespace PassFlow_Tracker.Application.Services
 				FROM trips t
 				JOIN rounds r ON t.round_id = r.id
 				JOIN daily_records dr ON r.daily_record_id = dr.id
+				JOIN vehicles v ON dr.vehicle_id = v.id
 				WHERE t.entered < @threshold
 				ORDER BY t.time_from DESC";
 
@@ -470,16 +949,153 @@ namespace PassFlow_Tracker.Application.Services
 			}
 		}
 
-		// 5. Дни (daily_records)
-		public async Task<List<DailyRecordRow>> GetDailyRecordsAsync(
+        public async Task<List<VehicleModelInfo>> GetVehicleModelsAsync()
+        {
+            AppLogger.Info($"[{LogContext}] Запрос моделей транспорта");
+            var startTime = DateTime.Now;
+
+            try
+            {
+                var data = new List<VehicleModelInfo>();
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                const string sql = "SELECT id, name, seats, capacity, description FROM vehicle_models ORDER BY name";
+                using var cmd = new NpgsqlCommand(sql, conn);
+                using var rdr = await cmd.ExecuteReaderAsync();
+
+                while (await rdr.ReadAsync())
+                    data.Add(new VehicleModelInfo(
+                        (int)rdr["id"],
+                        rdr["name"].ToString() ?? "",
+                        (int)rdr["seats"],
+                        (int)rdr["capacity"],
+                        rdr["description"] as string
+                    ));
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Модели транспорта получены за {duration:F0}мс, записей: {data.Count}");
+                return data;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения транспорта", ex);
+                throw;
+            }
+        }
+
+        public async Task<List<VehicleInfo>> GetVehiclesAsync()
+        {
+            AppLogger.Info($"[{LogContext}] Запрос транспорта");
+            var startTime = DateTime.Now;
+
+            try
+            {
+                var data = new List<VehicleInfo>();
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                const string sql = @"
+					SELECT v.id, v.unit_name, vm.id AS model_id, vm.name AS model_name,
+						   vm.seats, vm.capacity, v.description
+					FROM vehicles v
+					JOIN vehicle_models vm ON v.vehicle_model_id = vm.id
+					ORDER BY v.unit_name";
+
+                using var cmd = new NpgsqlCommand(sql, conn);
+                using var rdr = await cmd.ExecuteReaderAsync();
+
+                while (await rdr.ReadAsync())
+                    data.Add(new VehicleInfo(
+                        (int)rdr["id"],
+                        rdr["unit_name"].ToString() ?? "",
+                        (int)rdr["model_id"],
+                        rdr["model_name"].ToString() ?? "",
+                        (int)rdr["seats"],
+                        (int)rdr["capacity"],
+                        rdr["description"] as string
+                    ));
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Транспорт получен за {duration:F0}мс, записей: {data.Count}");
+                return data;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка получения транспорта", ex);
+                throw;
+            }
+        }
+
+        public async Task UpdateVehicleModelAsync(int id, int seats, int capacity, string? description)
+        {
+            AppLogger.Info($"[{LogContext}] Обновление моделей транспорта");
+
+            try
+            {
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                const string sql = @"
+					UPDATE vehicle_models
+					SET seats = @seats, capacity = @capacity, description = @desc
+					WHERE id = @id";
+
+                using var cmd = new NpgsqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@seats", seats);
+                cmd.Parameters.AddWithValue("@capacity", capacity);
+                cmd.Parameters.AddWithValue("@desc", (object?)description ?? DBNull.Value);
+
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка обновления моделей танспорта", ex);
+                throw;
+            }
+        }
+
+        public async Task UpdateVehicleAsync(int id, int modelId, string? unitName, string? description)
+        {
+            AppLogger.Info($"[{LogContext}] Обновление транспорта");
+
+            try
+            {
+                using var conn = _db.CreateConnection();
+                await conn.OpenAsync();
+
+                const string sql = @"
+					UPDATE vehicles
+					SET vehicle_model_id = @modelId, 
+						unit_name = COALESCE(@unitName, unit_name),
+						description = @desc
+					WHERE id = @id";
+
+                using var cmd = new NpgsqlCommand(sql, conn);
+
+                cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@modelId", modelId);
+                cmd.Parameters.AddWithValue("@unitName", (object?)unitName ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@desc", (object?)description ?? DBNull.Value);
+
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка обновления транспорта", ex);
+                throw;
+            }
+        }
+
+        // 5. Дни (daily_records)
+        public async Task<List<DailyRecordRow>> GetDailyRecordsAsync(
 			List<int>? ids = null,
 			DateOnly? dateFrom = null,
 			DateOnly? dateTo = null)
 		{
 			AppLogger.Info($"[{LogContext}] Запрос дней");
 			var startTime = DateTime.Now;
-
-			Console.WriteLine("TransportAnalytics.cs <<<<<<<<<<<< " + dateFrom + "  :::::::::::::::  " + dateTo);
 
 			try
 			{
@@ -488,8 +1104,10 @@ namespace PassFlow_Tracker.Application.Services
 				await conn.OpenAsync();
 
 				var sql = @"
-				SELECT id, unit_name, record_date, entered, exited, transported
-				FROM daily_records
+				SELECT dr.id, v.unit_name, dr.record_date,
+					   dr.entered, dr.exited, dr.transported
+				FROM daily_records dr
+				JOIN vehicles v ON dr.vehicle_id = v.id
 				WHERE 1=1";
 
 				var parameters = new List<NpgsqlParameter>();
@@ -588,13 +1206,14 @@ namespace PassFlow_Tracker.Application.Services
 
 				var sql = @"
 					SELECT dr.id,
-						   dr.unit_name,
+						   v.unit_name,
 						   r.start_point, r.end_point,
 						   r.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
 						   r.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
 						   r.entered, r.exited, r.transported
 					FROM rounds r
 					JOIN daily_records dr ON r.daily_record_id = dr.id
+					JOIN vehicles v ON dr.vehicle_id = v.id
 					WHERE 1=1";
 
 				var parameters = new List<NpgsqlParameter>();
@@ -666,7 +1285,7 @@ namespace PassFlow_Tracker.Application.Services
 
 				var sql = @"
 					SELECT t.id,
-						   dr.unit_name,
+						   v.unit_name,
 						   t.start_point, t.end_point,
 						   t.time_from AT TIME ZONE 'Europe/Moscow' AS tf,
 						   t.time_to   AT TIME ZONE 'Europe/Moscow' AS tt,
@@ -674,6 +1293,7 @@ namespace PassFlow_Tracker.Application.Services
 					FROM trips t
 					JOIN rounds r ON t.round_id = r.id
 					JOIN daily_records dr ON r.daily_record_id = dr.id
+					JOIN vehicles v ON dr.vehicle_id = v.id
 					WHERE 1=1";
 
 				var parameters = new List<NpgsqlParameter>();
@@ -745,7 +1365,7 @@ namespace PassFlow_Tracker.Application.Services
 				var sql = @"
 				SELECT
 					dr.id        AS dr_id,
-					dr.unit_name, dr.record_date,
+					v.unit_name, dr.record_date,
 					dr.entered   AS dr_entered,
 					dr.exited    AS dr_exited,
 					dr.transported AS dr_transported,
@@ -775,6 +1395,7 @@ namespace PassFlow_Tracker.Application.Services
 					ts.transported AS ts_transported
 
 				FROM daily_records dr
+				JOIN vehicles v ON dr.vehicle_id = v.id
 				JOIN rounds r  ON r.daily_record_id = dr.id
 				JOIN trips  t  ON t.round_id = r.id
 				JOIN trip_stops ts ON ts.trip_id = t.id
@@ -913,16 +1534,11 @@ namespace PassFlow_Tracker.Application.Services
 						WHERE id = @id";
 
 
-					//time_from = @from::timestamptz,
-					//time_to = @to::timestamptz,
-
 					using var cmd = new NpgsqlCommand(sql, conn, transaction);
 					cmd.Parameters.AddWithValue("@id", stop.Id);
 					cmd.Parameters.AddWithValue("@num", stop.StopNumber);
 
 					cmd.Parameters.AddWithValue("@name", stop.StopName);
-					//cmd.Parameters.AddWithValue("@from", DateTime.Parse(stop.TimeFrom));
-					//cmd.Parameters.AddWithValue("@to", DateTime.Parse(stop.TimeTo));
 					cmd.Parameters.AddWithValue("@entered", stop.Entered);
 					cmd.Parameters.AddWithValue("@exited", stop.Exited);
 					cmd.Parameters.AddWithValue("@transported", stop.Transported);

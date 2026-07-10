@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using PassFlow_Tracker.UI.ViewModels;
+using PassFlow_Tracker.UI.ViewModels.Core;
 
 namespace PassFlow_Tracker
 {

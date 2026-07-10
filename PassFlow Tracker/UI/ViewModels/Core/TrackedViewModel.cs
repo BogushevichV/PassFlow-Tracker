@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace PassFlow_Tracker.UI.ViewModels
+namespace PassFlow_Tracker.UI.ViewModels.Core
 {
     public abstract partial class TrackedViewModel : ViewModelBase
     {

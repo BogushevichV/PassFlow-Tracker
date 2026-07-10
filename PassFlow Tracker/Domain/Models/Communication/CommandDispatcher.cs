@@ -41,23 +41,35 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             {
                 var response = request.Command switch
                 {
-                    "import_json"         => await ImportJson(request),
-                    "peak_hours"          => await GetPeakHours(),
-                    "peak_hours_chart"    => await GetPeakHoursChart(request),
-                    "routes"              => await GetRoutes(request),
-                    "top_stops"           => await GetTopStops(request),
-                    "top_stops_detailed"  => await GetTopStopsDetailed(request),
-                    "low_activity"        => await GetLowTrips(request),
-                    "trip_stops"          => await GetTripStops(request),
-                    "rounds"              => await GetRounds(request),
-                    "trips"               => await GetTrips(request),
-                    "daily_records"       => await GetDailyRecords(request),
-                    "daily_flow"          => await GetDailyFlow(request),
-                    "all_data"            => await GetAllData(request),
-                    "update_trip_stops"   => await UpdateTripStops(request),
-                    "update_trips"        => await UpdateTrips(request),
-                    "update_rounds"       => await UpdateRounds(request),
-                    "update_daily_records" => await UpdateDailyRecords(request),
+                    "import_json"           => await ImportJson(request),
+                    "peak_hours"            => await GetPeakHours(),
+                    "peak_hours_chart"      => await GetPeakHoursChart(request),
+                    "routes"                => await GetRoutes(request),
+                    "top_stops"             => await GetTopStops(request),
+                    "top_stops_detailed"    => await GetTopStopsDetailed(request),
+                    "low_activity"          => await GetLowTrips(request),
+                    "trip_stops"            => await GetTripStops(request),
+                    "vehicle_models"        => await GetVehicleModels(),
+                    "update_vehicle_model"  => await UpdateVehicleModel(request),
+                    "vehicles"              => await GetVehicles(),
+                    "update_vehicle"        => await UpdateVehicle(request),
+                    "rounds"                => await GetRounds(request),
+                    "trips"                 => await GetTrips(request),
+                    "daily_records"         => await GetDailyRecords(request),
+                    "daily_flow"            => await GetDailyFlow(request),
+                    "all_data"              => await GetAllData(request),
+                    "update_trip_stops"     => await UpdateTripStops(request),
+                    "update_trips"          => await UpdateTrips(request),
+                    "update_rounds"         => await UpdateRounds(request),
+                    "update_daily_records"  => await UpdateDailyRecords(request),
+                    "distinct_routes"       => await GetDistinctRoutes(),
+                    "route_scheme_all"      => await GetRouteSchemeAllTime(request),
+                    "route_scheme_day"      => await GetRouteSchemeDay(request),
+                    "route_scheme_trip"     => await GetRouteSchemeTrip(request),
+                    "route_days"            => await GetRouteDays(request),
+                    "route_trips"           => await GetRouteTrips(request),
+                    "route_vehicles"        => await GetRouteVehicles(request),
+                    "route_trips_detailed"  => await GetRouteTripsDetailed(request),
                     _ => new IpcResponse { Success = false, Message = "Unknown command" }
                 };
 
@@ -192,6 +204,7 @@ namespace PassFlow_Tracker.Domain.Models.Communication
 
             return new IpcResponse { Success = true, Data = data };
         }
+
         private async Task<IpcResponse> GetTripStops(IpcRequest req)
         {
             var ids = DeserializeIds(req);
@@ -202,6 +215,40 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             AppLogger.Info($"[{LogContext}] Найдено {data.Count} остановок");
 
             return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetVehicleModels()
+        {
+            var data = await _analytics.GetVehicleModelsAsync();
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> UpdateVehicleModel(IpcRequest req)
+        {
+            var id = int.Parse(req.Parameters?["id"]!);
+            var seats = int.Parse(req.Parameters?["seats"]!);
+            var capacity = int.Parse(req.Parameters?["capacity"]!);
+            var desc = req.Parameters?.GetValueOrDefault("description");
+
+            await _analytics.UpdateVehicleModelAsync(id, seats, capacity, desc);
+            return new IpcResponse { Success = true, Message = "Модель обновлена" };
+        }
+
+        private async Task<IpcResponse> GetVehicles()
+        {
+            var data = await _analytics.GetVehiclesAsync();
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> UpdateVehicle(IpcRequest req)
+        {
+            var id = int.Parse(req.Parameters?["id"]!);
+            var modelId = int.Parse(req.Parameters?["model_id"]!);
+            var desc = req.Parameters?.GetValueOrDefault("description");
+            var unitName = req.Parameters?.GetValueOrDefault("unit_name");
+
+            await _analytics.UpdateVehicleAsync(id, modelId, unitName, desc);
+            return new IpcResponse { Success = true, Message = "Машина обновлена" };
         }
 
         private async Task<IpcResponse> GetRounds(IpcRequest req)
@@ -362,6 +409,80 @@ namespace PassFlow_Tracker.Domain.Models.Communication
             AppLogger.Info($"[{LogContext}] Дни обновлены");
 
             return new IpcResponse { Success = true, Message = $"Обновлено дней: {data.Count}" };
+        }
+
+        private async Task<IpcResponse> GetDistinctRoutes()
+        {
+            var data = await _analytics.GetDistinctRoutesAsync();
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRouteSchemeAllTime(IpcRequest req)
+        {
+            var start = req.Parameters?["start"]!;
+            var end = req.Parameters?["end"]!;
+            int? vehicleId = req.Parameters?.TryGetValue("vehicle_id", out var vid) == true
+                ? int.Parse(vid) : null;
+
+            var data = await _analytics.GetRouteSchemeAllTimeAsync(start, end, vehicleId);
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRouteSchemeDay(IpcRequest req)
+        {
+            var start = req.Parameters?["start"]!;
+            var end = req.Parameters?["end"]!;
+            var date = DateOnly.Parse(req.Parameters?["date"]!);
+            int? vehicleId = req.Parameters?.TryGetValue("vehicle_id", out var vid) == true
+                ? int.Parse(vid) : null;
+
+            var data = await _analytics.GetRouteSchemeDayAsync(start, end, date, vehicleId);
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRouteSchemeTrip(IpcRequest req)
+        {
+            var tripId = int.Parse(req.Parameters?["trip_id"]!);
+            int? vehicleId = req.Parameters?.TryGetValue("vehicle_id", out var vid) == true
+                ? int.Parse(vid) : null;
+
+            var data = await _analytics.GetRouteSchemeTripAsync(tripId, vehicleId);
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRouteDays(IpcRequest req)
+        {
+            var start = req.Parameters?["start"]!;
+            var end = req.Parameters?["end"]!;
+            var data = await _analytics.GetRouteDaysAsync(start, end);
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRouteTrips(IpcRequest req)
+        {
+            var start = req.Parameters?["start"]!;
+            var end = req.Parameters?["end"]!;
+            var date = DateOnly.Parse(req.Parameters?["date"]!);
+            var data = await _analytics.GetRouteTripsAsync(start, end, date);
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRouteVehicles(IpcRequest req)
+        {
+            var start = req.Parameters?["start"]!;
+            var end = req.Parameters?["end"]!;
+            var date = DateOnly.Parse(req.Parameters?["date"]!);
+            var data = await _analytics.GetRouteVehiclesAsync(start, end, date);
+            return new IpcResponse { Success = true, Data = data };
+        }
+
+        private async Task<IpcResponse> GetRouteTripsDetailed(IpcRequest req)
+        {
+            var start = req.Parameters?["start"]!;
+            var end = req.Parameters?["end"]!;
+            var date = DateOnly.Parse(req.Parameters?["date"]!);
+            var data = await _analytics.GetRouteTripsDetailedAsync(start, end, date);
+            return new IpcResponse { Success = true, Data = data };
         }
     }
 }

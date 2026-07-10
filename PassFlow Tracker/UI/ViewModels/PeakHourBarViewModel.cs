@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PassFlow_Tracker.UI.ViewModels.Core;
 
 namespace PassFlow_Tracker.UI.ViewModels
 {

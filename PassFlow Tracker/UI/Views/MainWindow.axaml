@@ -134,6 +134,13 @@
     </Style>
   </Window.Styles>
 
+  <Window.Resources>
+    <local:ExpandedToIconConverter x:Key="ExpandedToIconConverter"/>
+    <local:BoolToHighlightBackgroundConverter x:Key="BoolToHighlightBackgroundConverter"/>
+    <local:BoolToHighlightForegroundConverter x:Key="BoolToHighlightForegroundConverter"/>
+    <local:BoolToReplacedColorConverter x:Key="BoolToReplacedColorConverter"/>
+  </Window.Resources>
+
   <Design.DataContext>
     <vm:MainWindowViewModel/>
   </Design.DataContext>
@@ -212,13 +219,6 @@
                   <PathIcon Data="M12.5 8c-2.65 0-5.05 1-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
                             Width="18" Height="18" Foreground="#475569"/>
                   <TextBlock Text="Отменить" FontSize="10" HorizontalAlignment="Center"/>
-                </StackPanel>
-              </Button>
-              <Button Classes="ribbon" IsEnabled="false">
-                <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
-                  <PathIcon Data="M18.4 10.6C16.55 9 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c2.12 0 4.04.75 5.52 1.98L13 16h9V7l-3.6 3.6z"
-                            Width="18" Height="18" Foreground="#475569"/>
-                  <TextBlock Text="Вернуть" FontSize="10" HorizontalAlignment="Center"/>
                 </StackPanel>
               </Button>
             </StackPanel>
@@ -451,6 +451,29 @@
           <StackPanel Margin="0,0,16,0">
             <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
 
+                <StackPanel Spacing="3" Width="   70">
+                  <Button Classes="ribbon" Command="{Binding OpenVehiclesCommand}">
+                        <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                            <PathIcon Data="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm9 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"
+                                      Width="18" Height="18" Foreground="#6366F1"/>
+                            <TextBlock Text="Транспорт" FontSize="10" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                  </Button>
+              </StackPanel>
+
+
+
+              <StackPanel Spacing="3">
+                <Button Classes="ribbon" HorizontalAlignment="Stretch" 
+                        Command="{Binding OpenRouteAnalyticsCommand}">
+                    <StackPanel Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                        <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
+                                  Width="18" Height="18" Foreground="#0891B2"/>
+                        <TextBlock Text="Маршруты" FontSize="10" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
               <!-- Часы пик — без параметра -->
               <StackPanel Spacing="3" Width="64">
                 <Button Classes="ribbon" HorizontalAlignment="Stretch" Command="{Binding RunPeakHoursCommand}">
@@ -492,6 +515,8 @@
                          ToolTip.Tip="Порог пассажиров для фильтрации"/>
               </StackPanel>
 
+              
+
             </StackPanel>
 
             <TextBlock Text="АНАЛИЗ" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
@@ -500,6 +525,8 @@
 
           <!-- Divider -->
           <Border Width="1" Background="#E2E8F0" Margin="0,4,16,4"/>
+          
+          
 
           <!-- GROUP: Представление -->
           <StackPanel>
@@ -806,6 +833,711 @@
                 <DataGridTextColumn Header="Перевезено" Binding="{ReflectionBinding Transported}" Width="Auto"/>
               </DataGrid.Columns>
             </DataGrid>
+
+<!-- RouteAnalytics — добавить в MainWindow.axaml в Grid.Row="1" после DATA AREA -->
+<Grid IsVisible="{Binding ShowRouteAnalytics}" RowDefinitions="Auto,*">
+
+    <!-- ===== ПАНЕЛЬ УПРАВЛЕНИЯ ===== -->
+    <Border Grid.Row="0" Padding="12,10" Background="White" 
+            BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+            
+            <!-- Кнопка Назад -->
+            <Button Grid.Column="0" Content="← Назад" 
+                    IsVisible="{Binding Analytics.CanGoBack}"
+                    Command="{Binding Analytics.GoBackCommand}"
+                    Classes="ribbon" Margin="0,0,12,0"/>
+
+            <!-- Заголовок -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <PathIcon Data="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"
+                          Width="16" Height="16" Foreground="#0891B2"/>
+                <TextBlock Text="{Binding Analytics.LevelTitle}" 
+                           FontWeight="Bold" FontSize="14" Foreground="#1E293B"/>
+            </StackPanel>
+
+            <!-- Выбор маршрута (только на верхнем уровне) -->
+            <ComboBox Grid.Column="2" 
+                      ItemsSource="{Binding Analytics.Routes}" 
+                      SelectedItem="{Binding Analytics.SelectedRoute}"
+                      IsVisible="{Binding Analytics.CanSelectRoute}"
+                      Width="320" FontSize="13" Padding="6,4" Margin="12,0">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding RouteNumber}" FontWeight="SemiBold" 
+                                       Foreground="#2563EB"
+                                       IsVisible="{Binding RouteNumber}"/>
+                            <TextBlock>
+                                <Run Text="{Binding StartPoint}"/><Run Text=" → "/><Run Text="{Binding EndPoint}"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <!-- Кнопка Подробнее -->
+            <Button Grid.Column="3" Content="📋 Подробнее" 
+                    IsVisible="{Binding Analytics.CanDrillDown}"
+                    Command="{Binding Analytics.DrillDownCommand}"
+                    Classes="ribbon" Margin="12,0"/>
+
+            <!-- Сброс машины -->
+            <Button Grid.Column="4" Content="Сбросить" 
+                    IsVisible="{Binding Analytics.CanChangeVehicle}"
+                    Command="{Binding Analytics.ResetVehicleCommand}"
+                    Classes="ribbon"/>
+        </Grid>
+    </Border>
+
+    <!-- ===== КОНТЕНТ: схема или список ===== -->
+    <Grid Grid.Row="1">
+        
+        <!-- СХЕМА -->
+        <ScrollViewer IsVisible="{Binding Analytics.IsShowingScheme}"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Analytics.SchemeStops}" 
+                          Margin="24,16">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+    <Grid ColumnDefinitions="Auto,Auto,Auto,*" MinHeight="70">
+        
+        <!-- Колонка с кругом и линиями -->
+        <Grid Grid.Column="0" Width="40">
+            <Rectangle Width="3" Fill="{Binding PreviousLineColor}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Top" Height="35"
+                       IsVisible="{Binding !IsFirst}"/>
+            <Border Width="18" Height="18" CornerRadius="9"
+                    Background="White" BorderBrush="#2563EB" BorderThickness="3"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" ZIndex="1"/>
+            <Rectangle Width="3" Fill="{Binding LineColor}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Bottom" Height="35"
+                       IsVisible="{Binding !IsLast}"/>
+        </Grid>
+
+        <!-- Название и счётчики -->
+        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Border Background="#EFF6FF" CornerRadius="4" Padding="4,2" MinWidth="28">
+                    <TextBlock Text="{Binding StopNumber}" FontSize="11" FontWeight="Bold"
+                               Foreground="#2563EB" TextAlignment="Center"/>
+                </Border>
+                <TextBlock Text="{Binding StopName}" FontWeight="SemiBold" FontSize="13"
+                           Foreground="#1E293B"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="16" Margin="34,4,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="↑" FontSize="11" Foreground="#16A34A" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding EnteredLabel}" FontSize="11" Foreground="#334155"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="↓" FontSize="11" Foreground="#DC2626" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding ExitedLabel}" FontSize="11" Foreground="#334155"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+
+
+        <!-- Плашка на перегоне — выровнена с нижней линией -->
+        <Border Grid.Column="2" 
+                VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                Margin="20,0,0,0"
+                Padding="6,3" CornerRadius="4"
+                IsVisible="{Binding !IsLast}"
+                Background="{Binding LineColor}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="{Binding TransportedLabel}" 
+                           FontSize="10" Foreground="White" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding FillPercent, StringFormat={}{0:F0}%}" 
+                           FontSize="9" Foreground="White" FontWeight="Bold" Opacity="0.8"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- Пустая колонка-разделитель -->
+        <Grid Grid.Column="3"/>
+    </Grid>
+</DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- СПИСОК ДНЕЙ -->
+        <!-- СПИСОК ДНЕЙ — заменить DataGrid -->
+<ScrollViewer Grid.Row="1" IsVisible="{Binding Analytics.IsShowingDays}"
+              VerticalScrollBarVisibility="Auto"
+              HorizontalScrollBarVisibility="Auto">
+    <ItemsControl ItemsSource="{Binding Analytics.DaySummaries}"
+                  Margin="8,4">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <Border Margin="0,4" Padding="0" Background="White"
+                        BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
+                    <Grid RowDefinitions="Auto,Auto,Auto">
+
+                        <!-- ЗАГОЛОВОК ДНЯ -->
+                        <Border Grid.Row="0" Padding="12,8" Background="#F8FAFC"
+                                CornerRadius="8,8,0,0">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                                <Button Grid.Column="0" 
+                                        Command="{Binding $parent[Window].DataContext.Analytics.ToggleDayCommand}"
+                                        CommandParameter="{Binding}"
+                                        Background="Transparent" BorderThickness="0"
+                                        FontSize="16" Padding="4,0"
+                                        Content="{Binding IsExpanded, Converter={x:Static local:ExpandedToIconConverter.Instance}}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Date}" 
+                                           FontWeight="Bold" FontSize="14" 
+                                           Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" 
+                                           Text="{Binding TripCount, StringFormat={}Рейсов: {0}}" 
+                                           FontSize="12" Foreground="#64748B" 
+                                           VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                <TextBlock Grid.Column="3" FontSize="12" 
+                                           Foreground="#64748B" Margin="8,0"
+                                           VerticalAlignment="Center">
+                                    <Run Text="Машин: "/>
+                                    <Run Text="{Binding Vehicles.Count}" FontWeight="SemiBold"/>
+                                </TextBlock>
+                                <Button Grid.Column="4" Content="Детали рейсов" 
+                                    FontSize="11" Padding="8,3"
+                                    Background="#0891B2" Foreground="White" CornerRadius="4"
+                                    Command="{Binding $parent[Window].DataContext.Analytics.OpenDayDetailCommand}"
+                                    CommandParameter="{Binding}"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- СХЕМА ОСТАНОВОК (горизонтальная) -->
+                        <Border Grid.Row="1" Padding="12,8" 
+                                Background="White">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled">
+                                <StackPanel Orientation="Horizontal" Spacing="0">
+                                    <ItemsControl ItemsSource="{Binding Stops}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="0">
+                                                    <!-- Круг остановки -->
+                                                    <Border Width="12" Height="12" CornerRadius="6"
+                                                            Background="White"
+                                                            BorderBrush="#2563EB" BorderThickness="2">
+                                                        <ToolTip.Tip>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding StopName}" FontWeight="Bold"/>
+                                                                <TextBlock>
+                                                                    <Run Text="↑ "/><Run Text="{Binding EnteredLabel}"/>
+                                                                </TextBlock>
+                                                                <TextBlock>
+                                                                    <Run Text="↓ "/><Run Text="{Binding ExitedLabel}"/>
+                                                                </TextBlock>
+                                                                <TextBlock>
+                                                                    <Run Text="В салоне: "/><Run Text="{Binding TransportedLabel}"/>
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                        </ToolTip.Tip>
+                                                    </Border>
+                                                    <!-- Линия до следующей остановки -->
+                                                    <Rectangle Width="40" Height="3"
+                                                               Fill="{Binding LineColor}"
+                                                               VerticalAlignment="Center"
+                                                               IsVisible="{Binding !IsLast}"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <!-- СПИСОК ТРАНСПОРТА (раскрывающийся) -->
+                        <ItemsControl Grid.Row="2" 
+                                      IsVisible="{Binding IsExpanded}"
+                                      ItemsSource="{Binding Vehicles}"
+                                      Margin="12,0,12,8">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="8,4" Margin="0,2"
+                                            Background="#F0FDF4" CornerRadius="4">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+                                            <Border Grid.Column="0" Width="28" Height="28" 
+                                                    CornerRadius="14" Background="#DCFCE7">
+                                                <PathIcon Data="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10z"
+                                                          Width="14" Height="14" Foreground="#16A34A"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Text="{Binding VehicleName}" 
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Margin="8,0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding ModelName}" 
+                                                       FontSize="11" Foreground="#6366F1"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="3" 
+                                                       Text="{Binding Capacity, StringFormat={}{0} мест}" 
+                                                       FontSize="11" Foreground="#64748B"
+                                                       Margin="8,0" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="4" 
+                                                       Text="{Binding TripCount, StringFormat={}{0} рейсов}" 
+                                                       FontSize="11" Foreground="#64748B"
+                                                       Margin="8,0" VerticalAlignment="Center"/>
+                                            <Button Grid.Column="5" Content="Показать рейсы" 
+                                                    FontSize="10" Padding="6,2"
+                                                    Background="#0891B2" Foreground="White" CornerRadius="3"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </Grid>
+                </Border>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</ScrollViewer>
+
+        <!-- СПИСОК РЕЙСОВ -->
+        <!-- ДЕТАЛЬНАЯ ТАБЛИЦА РЕЙСОВ -->
+<Grid Grid.Row="1" IsVisible="{Binding Analytics.IsShowingTripsDetail}"
+      RowDefinitions="Auto,*">
+
+    <!-- Заголовок -->
+    <Border Grid.Row="0" Padding="12,8" Background="White" 
+            BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="← Назад" Command="{Binding Analytics.GoBackCommand}"
+                    Classes="ribbon"/>
+            <TextBlock Text="{Binding Analytics.LevelTitle}" 
+                       FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
+        </StackPanel>
+    </Border>
+
+    <!-- Основная область: левая колонка (остановки) + горизонтальный скролл рейсов -->
+    <Grid Grid.Row="1" ColumnDefinitions="180,*,220">
+        
+
+        <!-- ЛЕВАЯ КОЛОНКА: названия остановок -->
+        <Border Grid.Column="0" Background="White" BorderBrush="#E2E8F0" 
+                BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,Auto">
+        
+                <!-- Заголовок — высота 60 как у шапки рейсов -->
+                <Border Grid.Row="0" Height="60" Padding="8" Background="#F8FAFC"
+                        BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+                    <TextBlock Text="Остановки" FontWeight="SemiBold" FontSize="12"
+                               Foreground="#475569" VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Список остановок — высота 80 как у строк схемы -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Hidden"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Analytics.StopNames}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Height="80" Padding="8" 
+                                        BorderBrush="#F1F5F9" BorderThickness="0,0,0,1">
+                                    <TextBlock Text="{Binding}" FontSize="11" 
+                                               Foreground="#334155" VerticalAlignment="Center"
+                                               TextWrapping="Wrap"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- ПРАВАЯ КОЛОНКА: горизонтальный скролл рейсов -->
+        <ScrollViewer Grid.Column="1" 
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <!-- Шапка с названиями машин -->
+                <ItemsControl ItemsSource="{Binding Analytics.TripDetails}"
+                              VerticalAlignment="Top">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+    <!-- Один рейс -->
+    <Border Width="170" BorderBrush="#E2E8F0" BorderThickness="1,0,0,0"
+            Background="{Binding IsHighlighted, 
+                Converter={x:Static local:BoolToHighlightBackgroundConverter.Instance}}">
+        <Grid RowDefinitions="60,Auto,Auto">
+            
+            <!-- Заголовок рейса -->
+            <Border Grid.Row="0" Height="60" Padding="4"
+                    Background="#F8FAFC"
+                    BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding VehicleName}" FontSize="11" FontWeight="Bold"
+                               Foreground="{Binding IsReplaced, 
+                                   Converter={x:Static local:BoolToReplacedColorConverter.Instance}}"
+                               TextAlignment="Center" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding ModelName, StringFormat=({0})}" 
+                               FontSize="9" Foreground="#6366F1"
+                               TextAlignment="Center"/>
+                    <TextBlock Text="{Binding TimeFrom}" 
+                               FontSize="9" Foreground="#64748B"
+                               TextAlignment="Center" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Схема остановок -->
+            <ItemsControl Grid.Row="1" ItemsSource="{Binding Stops}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+    <Grid Height="80">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="50"/>    <!-- время прибытия/отбытия -->
+            <ColumnDefinition Width="16"/>    <!-- линия + круг -->
+            <ColumnDefinition Width="Auto"/>  <!-- вошло/вышло -->
+            <ColumnDefinition Width="Auto"/>  <!-- перевезено -->
+            <ColumnDefinition Width="Auto"/>  <!-- процент заполненности -->
+            <ColumnDefinition Width="*"/>     <!-- пустая -->
+        </Grid.ColumnDefinitions>
+
+        <!-- Время прибытия -->
+        <TextBlock Grid.Column="0" Text="{Binding TimeFrom}" 
+                   FontSize="8" Foreground="#94A3B8"
+                   HorizontalAlignment="Right" VerticalAlignment="Top"
+                   Margin="0,4,4,0"/>
+
+        <!-- Верхняя линия -->
+        <Rectangle Grid.Column="1" Width="4" Fill="{Binding PreviousLineColor}"
+                   HorizontalAlignment="Center" VerticalAlignment="Top" 
+                   Height="35" IsVisible="{Binding !IsFirst}"/>
+
+        <!-- Круг остановки -->
+        <Border Grid.Column="1" Width="12" Height="12" CornerRadius="6"
+                Background="White" BorderBrush="#2563EB" BorderThickness="2"
+                HorizontalAlignment="Center" VerticalAlignment="Center" ZIndex="1"/>
+
+        <!-- Нижняя линия -->
+        <Rectangle Grid.Column="1" Width="4" Fill="{Binding LineColor}"
+                   HorizontalAlignment="Center" VerticalAlignment="Bottom" 
+                   Height="35" IsVisible="{Binding !IsLast}"/>
+
+        <!-- Время отбытия -->
+        <TextBlock Grid.Column="0" Text="{Binding TimeTo}" 
+                   FontSize="8" Foreground="#94A3B8"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                   Margin="0,0,4,4"/>
+
+        <!-- Вошло / Вышло -->
+        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0,4,0">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+                <TextBlock Text="↑" FontSize="9" Foreground="#16A34A" FontWeight="Bold"/>
+                <TextBlock Text="{Binding Entered}" FontSize="10" Foreground="#16A34A" FontWeight="SemiBold"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="2">
+                <TextBlock Text="↓" FontSize="9" Foreground="#DC2626" FontWeight="Bold"/>
+                <TextBlock Text="{Binding Exited}" FontSize="10" Foreground="#DC2626" FontWeight="SemiBold"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Перевезено -->
+        <TextBlock Grid.Column="3" Text="{Binding Transported}" 
+                   FontSize="10" FontWeight="SemiBold" Foreground="#334155"
+                   VerticalAlignment="Center" Margin="4,0,4,0"/>
+
+        <!-- Процент заполненности — цветная плашка -->
+        <Border Grid.Column="4" VerticalAlignment="Bottom"
+                Margin="0,0,0,0"
+                Padding="5,3" CornerRadius="4"
+                IsVisible="{Binding !IsLast}"
+                Background="{Binding LineColor}">
+            <TextBlock Text="{Binding FillPercent, StringFormat={}{0:F0}%}" 
+                       FontSize="9" Foreground="White" FontWeight="Bold"/>
+        </Border>
+
+    </Grid>
+</DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Время окончания рейса (под последней остановкой) -->
+            <Border Grid.Row="2" Padding="4" HorizontalAlignment="Center">
+                <TextBlock Text="{Binding TimeTo}" 
+                           FontSize="9" Foreground="#64748B"/>
+            </Border>
+        </Grid>
+    </Border>
+</DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- ПРАВАЯ КОЛОНКА: список машин -->
+<Border Grid.Column="2" Background="White" 
+        BorderBrush="#E2E8F0" BorderThickness="1,0,0,0">
+    <Grid RowDefinitions="Auto,*,Auto">
+        
+        <!-- Заголовок -->
+        <Border Grid.Row="0" Height="60" Padding="8" Background="#F8FAFC"
+                BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Text="Машины" FontWeight="SemiBold" FontSize="12"
+                           Foreground="#475569"/>
+                <Button Content="Сбросить всё" FontSize="10" Padding="6,2"
+                        Background="#DC2626" Foreground="White" CornerRadius="3"
+                        Command="{Binding $parent[Window].DataContext.Analytics.ResetAllVehiclesCommand}"
+                        IsVisible="{Binding $parent[Window].DataContext.Analytics.HasReplacements}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Список машин -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Analytics.VehiclesForDay}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="10,8"
+                                BorderBrush="#F1F5F9" BorderThickness="0,0,0,1"
+                                Background="{Binding IsHighlighted, 
+                                    Converter={x:Static local:BoolToHighlightBackgroundConverter.Instance}}">
+                            
+                            <Interaction.Behaviors>
+                                <EventTriggerBehavior EventName="PointerEntered">
+                                    <InvokeCommandAction 
+                                        Command="{Binding $parent[Window].DataContext.Analytics.HighlightVehicleCommand}" 
+                                        CommandParameter="{Binding}"/>
+                                </EventTriggerBehavior>
+                                <EventTriggerBehavior EventName="PointerExited">
+                                    <InvokeCommandAction 
+                                        Command="{Binding $parent[Window].DataContext.Analytics.UnhighlightVehicleCommand}" 
+                                        CommandParameter="{Binding}"/>
+                                </EventTriggerBehavior>
+                            </Interaction.Behaviors>
+                            
+                            <StackPanel Spacing="4">
+                                <!-- Название машины + выпадающий список замены -->
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding VehicleName}" 
+                                               FontWeight="Bold" FontSize="13"
+                                               Foreground="{Binding IsReplaced, 
+                                                   Converter={x:Static local:BoolToReplacedColorConverter.Instance}}"/>
+                                    
+                                    <!-- Индикатор замены -->
+                                    <Border Background="#FEF3C7" CornerRadius="3" Padding="4,2"
+                                            IsVisible="{Binding IsReplaced}">
+                                        <TextBlock FontSize="9" Foreground="#92400E">
+                                            <Run Text="Была: "/>
+                                            <Run Text="{Binding OriginalVehicleName}" FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Модель -->
+                                <TextBlock Text="{Binding ModelName}" FontSize="11" 
+                                           Foreground="#6366F1"/>
+
+                                <!-- Характеристики -->
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock FontSize="10" Foreground="#64748B">
+                                        <Run Text="Сидений: "/>
+                                        <Run Text="{Binding Seats}" FontWeight="SemiBold"/>
+                                    </TextBlock>
+                                    <TextBlock FontSize="10" Foreground="#64748B">
+                                        <Run Text="Вместимость: "/>
+                                        <Run Text="{Binding Capacity}" FontWeight="SemiBold"/>
+                                    </TextBlock>
+                                </StackPanel>
+
+                                <!-- Количество рейсов -->
+                                <TextBlock FontSize="10" Foreground="#64748B">
+                                    <Run Text="Рейсов: "/>
+                                    <Run Text="{Binding TripCount}" FontWeight="SemiBold"/>
+                                </TextBlock>
+
+                                <!-- Выпадающий список для замены -->
+                                <ComboBox 
+                                    ItemsSource="{Binding $parent[Window].DataContext.Analytics.AllVehicles}"
+                                    SelectedItem="{Binding SelectedReplacement}"
+                                    FontSize="11" Padding="4,2"
+                                    PlaceholderText="Заменить на...">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <TextBlock Text="{Binding UnitName}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="(" Foreground="#94A3B8"/>
+                                                <TextBlock Text="{Binding ModelName}" Foreground="#6366F1"/>
+                                                <TextBlock Text="," Foreground="#94A3B8"/>
+                                                <TextBlock Text="{Binding Capacity}" Foreground="#334155"/>
+                                                <TextBlock Text="мест)" Foreground="#94A3B8"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+
+                                <!-- Кнопки -->
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Button Content="Применить" FontSize="10" Padding="6,2"
+                                            Background="#2563EB" Foreground="White" CornerRadius="3"
+                                            Command="{Binding $parent[Window].DataContext.Analytics.ReplaceVehicleCommand}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Сбросить" FontSize="10" Padding="6,2"
+                                            Background="#DC2626" Foreground="White" CornerRadius="3"
+                                            IsVisible="{Binding IsReplaced}"
+                                            Command="{Binding $parent[Window].DataContext.Analytics.ResetVehicleCommand}"
+                                            CommandParameter="{Binding}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</Border>
+    </Grid>
+</Grid>
+    </Grid>
+</Grid>
+
+<!-- Транспорт -->
+<Grid IsVisible="{Binding ShowVehicles}">
+    <Grid RowDefinitions="Auto,*">
+        
+        <!-- Под-вкладки -->
+        <Border Grid.Row="0" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="12,6" Spacing="4">
+                <Button Content="Модели" Classes="tab"
+                        Classes.active="{Binding ShowVehicleModels}"
+                        Command="{Binding SetVehiclesSubTabCommand}" CommandParameter="models"/>
+                <Button Content="Машины" Classes="tab"
+                        Classes.active="{Binding ShowVehiclesList}"
+                        Command="{Binding SetVehiclesSubTabCommand}" CommandParameter="list"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Модели -->
+        <ScrollViewer Grid.Row="1" IsVisible="{Binding ShowVehicleModels}" 
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="8" Margin="16,12">
+                <ItemsControl ItemsSource="{Binding AvailableModels}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="16" Background="White" BorderBrush="#E2E8F0"
+                                    BorderThickness="1" CornerRadius="8" Margin="0,4">
+                                <Grid ColumnDefinitions="48,*,Auto" RowDefinitions="Auto,Auto,Auto">
+                                    
+                                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
+                                            Width="40" Height="40" CornerRadius="20"
+                                            Background="#EEF2FF" VerticalAlignment="Top">
+                                        <PathIcon Data="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.32.07-.64.07-.98s-.03-.67-.07-1l2.16-1.63c.19-.15.24-.42.12-.64l-2.05-3.55c-.12-.22-.39-.3-.61-.22l-2.55 1c-.53-.4-1.1-.73-1.72-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.62.25-1.19.58-1.72.98l-2.55-1c-.22-.08-.49 0-.61.22L2.2 8.82c-.12.22-.07.49.12.64L4.48 11.1c-.04.33-.07.65-.07.98s.03.66.07.98l-2.16 1.64c-.19.15-.24.42-.12.64l2.05 3.55c.12.22.39.3.61.22l2.55-1c.53.4 1.1.73 1.72.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.62-.25 1.19-.58 1.72-.98l2.55 1c.22.08.49 0 .61-.22l2.05-3.55c.12-.22.07-.49-.12-.64l-2.16-1.64z"
+          Width="20" Height="20" Foreground="#6366F1"
+          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Name}"
+                                               FontWeight="Bold" FontSize="14" Margin="12,0,0,0"/>
+
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal"
+                                                Spacing="16" Margin="12,8,0,0">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="Сидений" FontSize="10" Foreground="#94A3B8"/>
+                                            <TextBox Text="{Binding Seats}" Width="80" FontSize="13"
+                                                     Padding="4,4" Background="#F8FAFC"/>
+                                        </StackPanel>
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="Вместимость" FontSize="10" Foreground="#94A3B8"/>
+                                            <TextBox Text="{Binding Capacity}" Width="80" FontSize="13"
+                                                     Padding="4,4" Background="#F8FAFC"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                                             Text="{Binding Description}" Watermark="Описание модели"
+                                             Margin="12,6,0,0" FontSize="12" Padding="4,4"
+                                             Background="#F8FAFC" BorderBrush="#E2E8F0"/>
+
+                                    <Button Grid.Row="0" Grid.Column="2" Content="Сохранить"
+                                            FontSize="11" Padding="10,4" Background="#2563EB"
+                                            Foreground="White" CornerRadius="4"
+                                            Command="{Binding $parent[Window].DataContext.SaveModelCommand}"
+                                            CommandParameter="{Binding}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Машины -->
+        <ScrollViewer Grid.Row="1" IsVisible="{Binding ShowVehiclesList}"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="8" Margin="16,12">
+                <ItemsControl ItemsSource="{Binding Vehicles}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="16" Background="White" BorderBrush="#E2E8F0"
+                                    BorderThickness="1" CornerRadius="8" Margin="0,4">
+                                <Grid ColumnDefinitions="48,*,Auto" RowDefinitions="Auto,Auto,Auto">
+                                    
+                                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
+                                            Width="40" Height="40" CornerRadius="20"
+                                            Background="#EEF2FF" VerticalAlignment="Top">
+                                        <PathIcon Data="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm9 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"
+                                                  Width="20" Height="20" Foreground="#6366F1"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+
+                                    <!-- Название машины (редактируемое) -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="12,0,0,0">
+                                        <TextBlock Text="Название / номер" FontSize="10" Foreground="#94A3B8"/>
+                                        <TextBox Text="{Binding UnitName}" FontSize="14" FontWeight="Bold"
+                                                 Padding="4,4" Background="#F8FAFC" Width="200"/>
+                                    </StackPanel>
+
+                                    <!-- Выбор модели -->
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="12,8,0,0">
+                                        <TextBlock Text="Модель" FontSize="10" Foreground="#94A3B8"/>
+                                        <ComboBox ItemsSource="{Binding $parent[ItemsControl].DataContext.AvailableModels}"
+                                              SelectedItem="{Binding SelectedModel}"
+                                              Width="200" FontSize="13" Padding="4,2">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    </StackPanel>
+
+                                    <Button Grid.Row="0" Grid.Column="2" Content="Сохранить"
+                                            FontSize="11" Padding="10,4" Background="#2563EB"
+                                            Foreground="White" CornerRadius="4"
+                                            Command="{Binding $parent[Window].DataContext.SaveVehicleCommand}"
+                                            CommandParameter="{Binding}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Grid>
 
           </Panel>
 

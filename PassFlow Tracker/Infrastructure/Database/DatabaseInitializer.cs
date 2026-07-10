@@ -81,9 +81,24 @@ public class DatabaseInitializer
         AppLogger.Info($"[{LogContext}] Создание таблиц...");
 
         string sql = @"
+            CREATE TABLE IF NOT EXISTS vehicle_models (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                seats INT NOT NULL DEFAULT 40,
+                capacity INT NOT NULL DEFAULT 60,
+                description VARCHAR(500)
+            );
+
+            CREATE TABLE IF NOT EXISTS vehicles (
+                id SERIAL PRIMARY KEY,
+                unit_name VARCHAR(255) NOT NULL UNIQUE,
+                vehicle_model_id INT NOT NULL REFERENCES vehicle_models(id),
+                description VARCHAR(500)
+            );
+
             CREATE TABLE IF NOT EXISTS daily_records (
                 id SERIAL PRIMARY KEY,
-                unit_name VARCHAR(255) NOT NULL,
+                vehicle_id INT REFERENCES vehicles(id),
                 record_date DATE NOT NULL,
                 entered INT DEFAULT 0,
                 exited INT DEFAULT 0,
@@ -107,6 +122,7 @@ public class DatabaseInitializer
                 round_id INT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
                 start_point VARCHAR(255),
                 end_point VARCHAR(255),
+                route_number VARCHAR(10),
                 time_from TIMESTAMPTZ,
                 time_to TIMESTAMPTZ,
                 entered INT DEFAULT 0,
@@ -151,7 +167,9 @@ public class DatabaseInitializer
             "daily_records",
             "rounds",
             "trips",
-            "trip_stops"
+            "trip_stops",
+            "vehicle_models",
+            "vehicles"
         };
 
         foreach (var table in tables)

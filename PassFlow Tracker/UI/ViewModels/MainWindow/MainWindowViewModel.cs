@@ -37,12 +37,20 @@ namespace PassFlow_Tracker.UI.ViewModels
         public ObservableCollection<DailyRecordRowViewModel> DailyRecords { get; } = new();
         public ObservableCollection<DayNodeViewModel> AllDataTree { get; } = new();
         public ObservableCollection<PeakHourBarViewModel> PeakHourBars { get; } = new();
+        public ObservableCollection<VehicleViewModel> Vehicles { get; } = new();
+        public ObservableCollection<VehicleModelViewModel> AvailableModels { get; } = new();
+        public ObservableCollection<VehicleModelViewModel> VehicleModels { get; } = new();
+
+        public AnalyticsViewModel Analytics { get; }
 
         public bool ShowTripStops    => ActiveTab == "trip_stops";
         public bool ShowRounds       => ActiveTab == "rounds";
         public bool ShowTrips        => ActiveTab == "trips";
         public bool ShowDailyRecords => ActiveTab == "daily_records";
         public bool ShowAllData      => ActiveTab == "all_data";
+        public bool ShowVehicles     => ActiveTab == "vehicles";
+        public bool ShowVehModels    => ActiveTab == "vehicle_models";
+        public bool ShowRouteAnalytics => ActiveTab == "route_analytics";
 
         partial void OnActiveTabChanged(string value)
         {
@@ -51,12 +59,17 @@ namespace PassFlow_Tracker.UI.ViewModels
             OnPropertyChanged(nameof(ShowTrips));
             OnPropertyChanged(nameof(ShowDailyRecords));
             OnPropertyChanged(nameof(ShowAllData));
+            OnPropertyChanged(nameof(ShowVehicles));
+            OnPropertyChanged(nameof(ShowVehicleModels));
+            OnPropertyChanged(nameof(ShowRouteAnalytics));
         }
 
         private const string LogContext = "MainWindowViewModel";
 
         public MainWindowViewModel()
         {
+            Analytics = new AnalyticsViewModel(_ipc, setStatus: msg => Status = msg);
+
             Calendar = new CalendarViewModel(
                 onFilterApplied: () => _ = SetActiveTab(ActiveTab),
                 flowLoader: async (from, to) =>
@@ -232,7 +245,16 @@ namespace PassFlow_Tracker.UI.ViewModels
                 Status = $"Ошибка: {ex.Message}";
             }
         }
-        
+
+
+        [RelayCommand]
+        private async Task OpenRouteAnalytics()
+        {
+            ActiveTab = "route_analytics";
+            OnPropertyChanged(nameof(ShowRouteAnalytics));
+            await Analytics.LoadRoutesAsync();
+        }
+
         [RelayCommand]
         private async Task LoadJson()
         {
@@ -656,6 +678,174 @@ namespace PassFlow_Tracker.UI.ViewModels
             {
                 AppLogger.Error($"[{LogContext}] Ошибка загрузки низкой активности", ex);
                 Status = "Ошибка загрузки";
+            }
+        }
+
+        [RelayCommand]
+        private async Task OpenVehicles()
+        {
+            AppLogger.Info($"[{LogContext}] Запрос: транспорт");
+
+            ActiveTab = "vehicles";
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest { Command = "vehicles" });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    var data = JsonSerializer.Deserialize<List<VehicleInfo>>(json);
+
+                    Vehicles.Clear();
+                    if (data != null)
+                        foreach (var v in data)
+                            Vehicles.Add(new VehicleViewModel
+                            {
+                                Id = v.Id,
+                                UnitName = v.UnitName,
+                                ModelId = v.ModelId,
+                                Description = v.Description ?? ""
+                            });
+
+                    Status = $"Транспорт: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Транспорт загружен: {data?.Count ?? 0} записей");
+                }
+
+                var modelsResp = await _ipc.SendAsync(new IpcRequest { Command = "vehicle_models" });
+                if (modelsResp.Success && modelsResp.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(modelsResp.Data);
+                    var data = JsonSerializer.Deserialize<List<VehicleModelInfo>>(json);
+                    AvailableModels.Clear();
+                    if (data != null)
+                        foreach (var m in data)
+                            AvailableModels.Add(new VehicleModelViewModel
+                            {
+                                Id = m.Id,
+                                Name = m.Name,
+                                Seats = m.Seats,
+                                Capacity = m.Capacity,
+                                Description = m.Description ?? ""
+                            });
+
+                    foreach (var vehicle in Vehicles)
+                    {
+                        vehicle.SelectedModel = AvailableModels.FirstOrDefault(m => m.Id == vehicle.ModelId);
+                    }
+
+                    AppLogger.Info($"[{LogContext}] Доступные модели загружены: {data?.Count ?? 0} записей");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
+
+        private string _vehiclesSubTab = "list";
+        public bool ShowVehicleModels => ShowVehicles && _vehiclesSubTab == "models";
+        public bool ShowVehiclesList => ShowVehicles && _vehiclesSubTab == "list";
+
+        [RelayCommand]
+        private void SetVehiclesSubTab(string tab)
+        {
+            _vehiclesSubTab = tab;
+            OnPropertyChanged(nameof(ShowVehicleModels));
+            OnPropertyChanged(nameof(ShowVehiclesList));
+        }
+
+        [RelayCommand]
+        private async Task OpenVehicleModels()
+        {
+            AppLogger.Info($"[{LogContext}] Запрос: модели транспорта");
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest { Command = "vehicle_models" });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    var data = JsonSerializer.Deserialize<List<VehicleModelInfo>>(json);
+
+                    VehicleModels.Clear();
+                    if (data != null)
+                        foreach (var m in data)
+                            VehicleModels.Add(new VehicleModelViewModel
+                            {
+                                Id = m.Id,
+                                Name = m.Name,
+                                Seats = m.Seats,
+                                Capacity = m.Capacity,
+                                Description = m.Description ?? ""
+                            });
+
+                    Status = $"Модели транспорта: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Модели транспорта загружены: {data?.Count ?? 0} записей");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки моделей транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        public async Task SaveVehicle(VehicleViewModel vehicle)
+        {
+            AppLogger.Info($"[{LogContext}] Сохранение: транспорт");
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "update_vehicle",
+                    Parameters = new()
+                    {
+                        ["id"] = vehicle.Id.ToString(),
+                        ["unit_name"] = vehicle.UnitName,
+                        ["model_id"] = vehicle.ModelId.ToString(),
+                        ["description"] = vehicle.Description
+                    }
+                });
+
+                Status = response.Message;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка сохранения транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        public async Task SaveModel(VehicleModelViewModel model)
+        {
+            AppLogger.Info($"[{LogContext}] Сохранение: модели транспорт");
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "update_vehicle_model",
+                    Parameters = new()
+                    {
+                        ["id"] = model.Id.ToString(),
+                        ["seats"] = model.Seats.ToString(),
+                        ["capacity"] = model.Capacity.ToString(),
+                        ["description"] = model.Description
+                    }
+                });
+                Status = response.Message;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка сохранения моделей транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
             }
         }
 
