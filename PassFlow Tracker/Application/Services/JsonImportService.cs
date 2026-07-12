@@ -93,12 +93,14 @@ namespace PassFlow_Tracker.Application.Services
 
             try
             {
-                var dailyCmd = new NpgsqlCommand(@"
-            INSERT INTO daily_records (unit_name, record_date, entered, exited, transported)
-            VALUES (@unit, @date, @entered, @exited, @transported)
-            RETURNING id;", connection);
+                int vehicleId = await VehicleDataAccess.EnsureVehicleIdAsync(connection, data.Unit, transaction);
 
-                dailyCmd.Parameters.AddWithValue("@unit", data.Unit);
+                var dailyCmd = new NpgsqlCommand(@"
+            INSERT INTO daily_records (vehicle_id, record_date, entered, exited, transported)
+            VALUES (@vehicleId, @date, @entered, @exited, @transported)
+            RETURNING id;", connection, transaction);
+
+                dailyCmd.Parameters.AddWithValue("@vehicleId", vehicleId);
                 dailyCmd.Parameters.AddWithValue("@date", DateTime.Parse(data.Date));
                 dailyCmd.Parameters.AddWithValue("@entered", data.Count.Entered);
                 dailyCmd.Parameters.AddWithValue("@exited", data.Count.Exited);
@@ -111,7 +113,7 @@ namespace PassFlow_Tracker.Application.Services
                     var roundCmd = new NpgsqlCommand(@"
                 INSERT INTO rounds (daily_record_id, start_point, end_point, time_from, time_to, entered, exited, transported)
                 VALUES (@dailyId, @start, @end, @from, @to, @entered, @exited, @transported)
-                RETURNING id;", connection);
+                RETURNING id;", connection, transaction);
 
                     roundCmd.Parameters.AddWithValue("@dailyId", dailyId);
                     roundCmd.Parameters.AddWithValue("@start", round.Start);
@@ -129,7 +131,7 @@ namespace PassFlow_Tracker.Application.Services
                         var tripCmd = new NpgsqlCommand(@"
                     INSERT INTO trips (round_id, start_point, end_point, time_from, time_to, entered, exited, transported)
                     VALUES (@roundId, @start, @end, @from, @to, @entered, @exited, @transported)
-                    RETURNING id;", connection);
+                    RETURNING id;", connection, transaction);
 
                         tripCmd.Parameters.AddWithValue("@roundId", roundId);
                         tripCmd.Parameters.AddWithValue("@start", trip.Start);
@@ -146,7 +148,7 @@ namespace PassFlow_Tracker.Application.Services
                         {
                             var stopCmd = new NpgsqlCommand(@"
                         INSERT INTO trip_stops (trip_id, stop_number, stop_name, is_duplicate, is_skipped, time_from, time_to, entered, exited, transported)
-                        VALUES (@tripId, @num, @name, @dup, @skip, @from, @to, @entered, @exited, @transported);", connection);
+                        VALUES (@tripId, @num, @name, @dup, @skip, @from, @to, @entered, @exited, @transported);", connection, transaction);
 
                             stopCmd.Parameters.AddWithValue("@tripId", tripId);
                             stopCmd.Parameters.AddWithValue("@num", stop.Id);

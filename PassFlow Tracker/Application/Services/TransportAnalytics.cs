@@ -1672,9 +1672,11 @@ namespace PassFlow_Tracker.Application.Services
 			{
 				foreach (var record in records)
 				{
+					int vehicleId = await VehicleDataAccess.EnsureVehicleIdAsync(conn, record.UnitName, transaction);
+
 					const string sql = @"
 						UPDATE daily_records
-						SET unit_name     = @unit,
+						SET vehicle_id    = @vehicleId,
 							record_date   = @date::date,
 							entered       = @entered,
 							exited        = @exited,
@@ -1683,7 +1685,7 @@ namespace PassFlow_Tracker.Application.Services
 
 					using var cmd = new NpgsqlCommand(sql, conn, transaction);
 					cmd.Parameters.AddWithValue("@id", record.Id);
-					cmd.Parameters.AddWithValue("@unit", record.UnitName);
+					cmd.Parameters.AddWithValue("@vehicleId", vehicleId);
 					cmd.Parameters.AddWithValue("@date", DateTime.Parse(record.RecordDate));
 					cmd.Parameters.AddWithValue("@entered", record.Entered);
 					cmd.Parameters.AddWithValue("@exited", record.Exited);
