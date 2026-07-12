@@ -11,11 +11,52 @@ using System.Threading.Tasks;
 
 namespace PassFlow_Tracker.UI.ViewModels
 {
+    // ViewModel одного месяца в режиме "Месяцы"
+    public partial class CalendarMonthViewModel : ViewModelBase
+    {
+        public int Month { get; init; }
+        public string Name { get; init; } = "";
+
+        [ObservableProperty] private bool _isSelected;
+        partial void OnIsSelectedChanged(bool _)
+        {
+            OnPropertyChanged(nameof(Background));
+            OnPropertyChanged(nameof(Foreground));
+        }
+
+        public string Background => IsSelected ? "#DBEAFE" : "Transparent";
+        public string Foreground => IsSelected ? "#1D4ED8" : "#334155";
+    }
+
+    // ViewModel одного года в режиме "Годы"
+    public partial class CalendarYearViewModel : ViewModelBase
+    {
+        public int Year { get; init; }
+
+        [ObservableProperty] private bool _isSelected;
+        partial void OnIsSelectedChanged(bool _)
+        {
+            OnPropertyChanged(nameof(Background));
+            OnPropertyChanged(nameof(Foreground));
+        }
+
+        public string Background => IsSelected ? "#DBEAFE" : "Transparent";
+        public string Foreground => IsSelected ? "#1D4ED8" : "#334155";
+    }
+
     public partial class CalendarViewModel : ViewModelBase
     {
-        public ObservableCollection<CalendarDayViewModel> CalendarDays { get; } = new();
+        public ObservableCollection<CalendarDayViewModel>   CalendarDays   { get; } = new();
+        public ObservableCollection<CalendarMonthViewModel> CalendarMonths { get; } = new();
+        public ObservableCollection<CalendarYearViewModel>  CalendarYears  { get; } = new();
 
         public static string[] DayOfWeekHeaders { get; } = { "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс" };
+
+        private static readonly string[] _monthNames =
+        {
+            "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+            "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"
+        };
 
         [ObservableProperty]
         private int _calendarYear = DateTime.Now.Year;
@@ -37,9 +78,16 @@ namespace PassFlow_Tracker.UI.ViewModels
         private string _calendarMode = "days";
         partial void OnCalendarModeChanged(string value)
         {
+            OnPropertyChanged(nameof(IsDaysMode));
+            OnPropertyChanged(nameof(IsMonthsMode));
+            OnPropertyChanged(nameof(IsYearsMode));
             BuildCalendar();
             OnPropertyChanged(nameof(CalendarTitle));
         }
+
+        public bool IsDaysMode   => CalendarMode == "days";
+        public bool IsMonthsMode => CalendarMode == "months";
+        public bool IsYearsMode  => CalendarMode == "years";
 
         [ObservableProperty]
         private DateOnly? _filterStartDate;
@@ -58,6 +106,11 @@ namespace PassFlow_Tracker.UI.ViewModels
         
         private DateOnly? _pendingStartDate;
         private DateOnly? _pendingEndDate;
+
+        // Выбранные месяцы (год, месяц) — для режима "Месяцы"
+        private readonly HashSet<(int Year, int Month)> _selectedMonths = new();
+        // Выбранные годы — для режима "Годы"
+        private readonly HashSet<int> _selectedYears = new();
 
         private readonly Action? _onFilterApplied;
 
@@ -79,7 +132,9 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
         }
 
-        public bool HasActiveFilter => FilterStartDate != null || FilterEndDate != null;
+        public bool HasActiveFilter => FilterStartDate != null || FilterEndDate != null
+                                    || _selectedMonths.Count > 0
+                                    || _selectedYears.Count > 0;
 
         public CalendarViewModel(Action? onFilterApplied = null)
         {
@@ -88,6 +143,13 @@ namespace PassFlow_Tracker.UI.ViewModels
         }
 
         private void BuildCalendar()
+        {
+            if (CalendarMode == "months")      BuildMonths();
+            else if (CalendarMode == "years")  BuildYears();
+            else                               BuildDays();
+        }
+
+        private void BuildDays()
         {
             CalendarDays.Clear();
 
@@ -114,13 +176,9 @@ namespace PassFlow_Tracker.UI.ViewModels
                 bool hasFlow = _flowByDate.TryGetValue(date, out var flow);
                 double intensity = 0;
                 if (hasFlow && _maxFlow > _minFlow)
-                {
                     intensity = (flow - _minFlow) / (double)(_maxFlow - _minFlow);
-                }
                 else if (hasFlow && _maxFlow > 0)
-                {
-                    intensity = 1.0; 
-                }
+                    intensity = 1.0;
 
                 CalendarDays.Add(new CalendarDayViewModel
                 {
@@ -145,6 +203,35 @@ namespace PassFlow_Tracker.UI.ViewModels
                     Day = 0,
                     IsCurrentMonth = false,
                     Date = null
+                });
+            }
+        }
+
+        private void BuildMonths()
+        {
+            CalendarMonths.Clear();
+            for (int m = 1; m <= 12; m++)
+            {
+                CalendarMonths.Add(new CalendarMonthViewModel
+                {
+                    Month = m,
+                    Name = _monthNames[m - 1],
+                    IsSelected = _selectedMonths.Contains((CalendarYear, m))
+                });
+            }
+        }
+
+        private void BuildYears()
+        {
+            CalendarYears.Clear();
+            int start = CalendarYear - 5;
+            int end   = CalendarYear + 6;
+            for (int y = start; y <= end; y++)
+            {
+                CalendarYears.Add(new CalendarYearViewModel
+                {
+                    Year = y,
+                    IsSelected = _selectedYears.Contains(y)
                 });
             }
         }
@@ -188,17 +275,71 @@ namespace PassFlow_Tracker.UI.ViewModels
                 await LoadPassengerFlowForRange();
             }
 
-            BuildCalendar();
+            BuildDays();
+            OnPropertyChanged(nameof(HasActiveFilter));
+        }
+
+        [RelayCommand]
+        private void ToggleMonth(CalendarMonthViewModel? month)
+        {
+            if (month == null) return;
+            var key = (CalendarYear, month.Month);
+            if (_selectedMonths.Contains(key))
+                _selectedMonths.Remove(key);
+            else
+                _selectedMonths.Add(key);
+
+            month.IsSelected = _selectedMonths.Contains(key);
+            OnPropertyChanged(nameof(HasActiveFilter));
+        }
+
+        [RelayCommand]
+        private void ToggleYear(CalendarYearViewModel? year)
+        {
+            if (year == null) return;
+            if (_selectedYears.Contains(year.Year))
+                _selectedYears.Remove(year.Year);
+            else
+                _selectedYears.Add(year.Year);
+
+            year.IsSelected = _selectedYears.Contains(year.Year);
             OnPropertyChanged(nameof(HasActiveFilter));
         }
 
         [RelayCommand]
         private void ApplyFilter()
         {
-            if (_pendingStartDate != null && _pendingEndDate != null)
+            if (CalendarMode == "months" && _selectedMonths.Count > 0)
+            {
+                // Преобразуем выбранные месяцы в диапазон дат
+                var sorted = _selectedMonths.OrderBy(m => m.Year).ThenBy(m => m.Month).ToList();
+                var first = sorted.First();
+                var last  = sorted.Last();
+                FilterStartDate = new DateOnly(first.Year, first.Month, 1);
+                var lastDays = DateTime.DaysInMonth(last.Year, last.Month);
+                FilterEndDate = new DateOnly(last.Year, last.Month, lastDays);
+                _pendingStartDate = FilterStartDate;
+                _pendingEndDate   = FilterEndDate;
+                IsFilterApplied = true;
+                ShowCalendar = false;
+                _onFilterApplied?.Invoke();
+            }
+            else if (CalendarMode == "years" && _selectedYears.Count > 0)
+            {
+                var minYear = _selectedYears.Min();
+                var maxYear = _selectedYears.Max();
+                FilterStartDate = new DateOnly(minYear, 1, 1);
+                FilterEndDate   = new DateOnly(maxYear, 12, 31);
+                _pendingStartDate = FilterStartDate;
+                _pendingEndDate   = FilterEndDate;
+                IsFilterApplied = true;
+                ShowCalendar = false;
+                _onFilterApplied?.Invoke();
+            }
+            else if (_pendingStartDate != null && _pendingEndDate != null)
             {
                 FilterStartDate = _pendingStartDate;
-                FilterEndDate = _pendingEndDate;
+                FilterEndDate   = _pendingEndDate;
                 IsFilterApplied = true;
                 ShowCalendar = false;
                 _onFilterApplied?.Invoke();
@@ -214,6 +355,8 @@ namespace PassFlow_Tracker.UI.ViewModels
             _pendingEndDate = null;
             _isSelectingRange = false;
             _selectingStart = null;
+            _selectedMonths.Clear();
+            _selectedYears.Clear();
             IsFilterApplied = false;
             ShowCalendar = false;
 
@@ -222,6 +365,7 @@ namespace PassFlow_Tracker.UI.ViewModels
             _minFlow = 0;
 
             BuildCalendar();
+            OnPropertyChanged(nameof(HasActiveFilter));
             _onFilterApplied?.Invoke();
         }
 
@@ -239,14 +383,8 @@ namespace PassFlow_Tracker.UI.ViewModels
                 CalendarMonth--;
                 if (CalendarMonth < 1) { CalendarMonth = 12; CalendarYear--; }
             }
-            else if (CalendarMode == "months")
-            {
-                CalendarYear--;
-            }
-            else
-            {
-                CalendarYear -= 12;
-            }
+            else if (CalendarMode == "months") CalendarYear--;
+            else CalendarYear -= 12;
         }
 
         [RelayCommand]
@@ -257,18 +395,11 @@ namespace PassFlow_Tracker.UI.ViewModels
                 CalendarMonth++;
                 if (CalendarMonth > 12) { CalendarMonth = 1; CalendarYear++; }
             }
-            else if (CalendarMode == "months")
-            {
-                CalendarYear++;
-            }
-            else
-            {
-                CalendarYear += 12;
-            }
+            else if (CalendarMode == "months") CalendarYear++;
+            else CalendarYear += 12;
         }
 
         private Dictionary<DateOnly, long> _flowByDate = new();
-
         private long _maxFlow;
         private long _minFlow;
 
@@ -285,8 +416,7 @@ namespace PassFlow_Tracker.UI.ViewModels
 
         private async Task LoadPassengerFlowForRange()
         {
-            if (_flowLoader == null || FilterStartDate == null || FilterEndDate == null)
-                return;
+            if (_flowLoader == null || FilterStartDate == null || FilterEndDate == null) return;
 
             _flowByDate = await _flowLoader(FilterStartDate.Value, FilterEndDate.Value);
 
@@ -297,23 +427,6 @@ namespace PassFlow_Tracker.UI.ViewModels
             }
 
             foreach (var day in CalendarDays)
-            {
-                if (day.Date != null && _flowByDate.TryGetValue(day.Date.Value, out var flow))
-                {
-                    day.Flow = flow;
-                    day.HasFlowData = true;
-                    day.FlowIntensity = _maxFlow > 0
-                        ? (flow - _minFlow) / (double)(_maxFlow - _minFlow)
-                        : 0;
-                }
-                else
-                {
-                    day.HasFlowData = false;
-                    day.FlowIntensity = 0;
-                }
-            }
-
-             foreach (var day in CalendarDays)
             {
                 if (day.Date != null && _flowByDate.TryGetValue(day.Date.Value, out var flow))
                 {
@@ -340,3 +453,5 @@ namespace PassFlow_Tracker.UI.ViewModels
         }
     }
 }
+
+          

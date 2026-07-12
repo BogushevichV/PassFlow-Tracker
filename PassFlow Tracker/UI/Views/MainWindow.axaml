@@ -332,20 +332,26 @@
                         <Button Grid.Column="0" Padding="6,4" HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
                                 Command="{Binding Calendar.SetCalendarModeCommand}" CommandParameter="days"
-                                CornerRadius="4" Background="#DBEAFE" BorderThickness="0">
-                          <TextBlock Text="Дни" Foreground="#1D4ED8"/>
+                                CornerRadius="4" BorderThickness="0"
+                                Background="{Binding Calendar.IsDaysMode, Converter={x:Static local:BoolToActiveBackgroundConverter.Instance}}">
+                          <TextBlock Text="Дни"
+                                     Foreground="{Binding Calendar.IsDaysMode, Converter={x:Static local:BoolToActiveColorConverter.Instance}}"/>
                         </Button>
                         <Button Grid.Column="1" Padding="6,4" HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
                                 Command="{Binding Calendar.SetCalendarModeCommand}" CommandParameter="months"
-                                CornerRadius="4" Background="Transparent" BorderThickness="0">
-                          <TextBlock Text="Месяцы"/>
+                                CornerRadius="4" BorderThickness="0"
+                                Background="{Binding Calendar.IsMonthsMode, Converter={x:Static local:BoolToActiveBackgroundConverter.Instance}}">
+                          <TextBlock Text="Месяцы"
+                                     Foreground="{Binding Calendar.IsMonthsMode, Converter={x:Static local:BoolToActiveColorConverter.Instance}}"/>
                         </Button>
                         <Button Grid.Column="2" Padding="6,4" HorizontalAlignment="Stretch"
                                 HorizontalContentAlignment="Center" FontSize="11" FontWeight="Medium"
                                 Command="{Binding Calendar.SetCalendarModeCommand}" CommandParameter="years"
-                                CornerRadius="4" Background="Transparent" BorderThickness="0">
-                          <TextBlock Text="Годы"/>
+                                CornerRadius="4" BorderThickness="0"
+                                Background="{Binding Calendar.IsYearsMode, Converter={x:Static local:BoolToActiveBackgroundConverter.Instance}}">
+                          <TextBlock Text="Годы"
+                                     Foreground="{Binding Calendar.IsYearsMode, Converter={x:Static local:BoolToActiveColorConverter.Instance}}"/>
                         </Button>
                       </Grid>
                     </Border>
@@ -369,7 +375,7 @@
                     </Grid>
 
                     <!-- DAYS MODE -->
-                    <StackPanel Margin="12,0,12,12">
+                    <StackPanel Margin="12,0,12,12" IsVisible="{Binding Calendar.IsDaysMode}">
                     <!-- Day-of-week headers -->
                       <Grid ColumnDefinitions="*,*,*,*,*,*,*" Margin="0,0,0,4">
                         <TextBlock Grid.Column="0" Text="Пн" FontSize="10" Foreground="#94A3B8" HorizontalAlignment="Center"/>
@@ -380,8 +386,7 @@
                         <TextBlock Grid.Column="5" Text="Сб" FontSize="10" Foreground="#64748B" HorizontalAlignment="Center"/>
                         <TextBlock Grid.Column="6" Text="Вс" FontSize="10" Foreground="#EF4444" HorizontalAlignment="Center"/>
                       </Grid>
-                      <!-- Week rows (static layout for visual) -->
-                        <ItemsControl ItemsSource="{Binding Calendar.CalendarDays}">
+                      <ItemsControl ItemsSource="{Binding Calendar.CalendarDays}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <UniformGrid Columns="7" Rows="6"/>
@@ -390,7 +395,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Content="{Binding Day}"
-                                        Classes="calendar-day"                                        
+                                        Classes="calendar-day"
                                         Command="{Binding $parent[Window].DataContext.Calendar.SelectCalendarDayCommand}"
                                         CommandParameter="{Binding}"
                                         IsVisible="{Binding IsCurrentMonth}"
@@ -404,26 +409,56 @@
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                      </ItemsControl>
                     </StackPanel>
 
-                    <!-- MONTHS MODE (static visual) -->
-                    <Grid IsVisible="False" Margin="12,0,12,12">
-                      <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="*,*,*">
-                        <Button Grid.Row="0" Grid.Column="0" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Янв"/>
-                        <Button Grid.Row="0" Grid.Column="1" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Фев"/>
-                        <Button Grid.Row="0" Grid.Column="2" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Мар"/>
-                        <Button Grid.Row="0" Grid.Column="3" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Апр"/>
-                        <Button Grid.Row="1" Grid.Column="0" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Май"/>
-                        <Button Grid.Row="1" Grid.Column="1" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Background="#DBEAFE" Foreground="#1D4ED8" FontWeight="SemiBold" Content="Июн"/>
-                        <Button Grid.Row="1" Grid.Column="2" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Июл"/>
-                        <Button Grid.Row="1" Grid.Column="3" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Авг"/>
-                        <Button Grid.Row="2" Grid.Column="0" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Сен"/>
-                        <Button Grid.Row="2" Grid.Column="1" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Окт"/>
-                        <Button Grid.Row="2" Grid.Column="2" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Ноя"/>
-                        <Button Grid.Row="2" Grid.Column="3" Classes="ribbon" Margin="2" Padding="4,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Content="Дек"/>
-                      </Grid>
-                    </Grid>
+                    <!-- MONTHS MODE -->
+                    <ItemsControl ItemsSource="{Binding Calendar.CalendarMonths}"
+                                  IsVisible="{Binding Calendar.IsMonthsMode}"
+                                  Margin="12,0,12,12">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <UniformGrid Columns="4" Rows="3"/>
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Button Margin="2" Padding="4,10"
+                                  HorizontalAlignment="Stretch"
+                                  HorizontalContentAlignment="Center"
+                                  FontSize="12" BorderThickness="0"
+                                  Background="{Binding Background}"
+                                  Foreground="{Binding Foreground}"
+                                  Content="{Binding Name}"
+                                  Command="{Binding $parent[Window].DataContext.Calendar.ToggleMonthCommand}"
+                                  CommandParameter="{Binding}"/>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- YEARS MODE -->
+                    <ItemsControl ItemsSource="{Binding Calendar.CalendarYears}"
+                                  IsVisible="{Binding Calendar.IsYearsMode}"
+                                  Margin="12,0,12,12">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <UniformGrid Columns="4" Rows="3"/>
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Button Margin="2" Padding="4,10"
+                                  HorizontalAlignment="Stretch"
+                                  HorizontalContentAlignment="Center"
+                                  FontSize="12" BorderThickness="0"
+                                  Background="{Binding Background}"
+                                  Foreground="{Binding Foreground}"
+                                  Content="{Binding Year}"
+                                  Command="{Binding $parent[Window].DataContext.Calendar.ToggleYearCommand}"
+                                  CommandParameter="{Binding}"/>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
                     <!-- Footer buttons -->
                     <Border BorderBrush="#F1F5F9" BorderThickness="0,1,0,0" Padding="12,8">
