@@ -3,14 +3,12 @@ using Avalonia.Platform.Storage;
 using ClosedXML.Excel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DocumentFormat.OpenXml.Drawing.Charts;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
 using PassFlow_Tracker.Application.Services;
 using PassFlow_Tracker.Application.Services.IPC;
 using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Domain.Models.Communication;
-using PassFlow_Tracker.Infrastructure.Database;
 using PassFlow_Tracker.Infrastructure.Logging;
 using PassFlow_Tracker.UI.Views;
 using SkiaSharp;
@@ -39,12 +37,20 @@ namespace PassFlow_Tracker.UI.ViewModels
         public ObservableCollection<DailyRecordRowViewModel> DailyRecords { get; } = new();
         public ObservableCollection<DayNodeViewModel> AllDataTree { get; } = new();
         public ObservableCollection<PeakHourBarViewModel> PeakHourBars { get; } = new();
+        public ObservableCollection<VehicleViewModel> Vehicles { get; } = new();
+        public ObservableCollection<VehicleModelViewModel> AvailableModels { get; } = new();
+        public ObservableCollection<VehicleModelViewModel> VehicleModels { get; } = new();
+
+        public AnalyticsViewModel Analytics { get; }
 
         public bool ShowTripStops    => ActiveTab == "trip_stops";
         public bool ShowRounds       => ActiveTab == "rounds";
         public bool ShowTrips        => ActiveTab == "trips";
         public bool ShowDailyRecords => ActiveTab == "daily_records";
         public bool ShowAllData      => ActiveTab == "all_data";
+        public bool ShowVehicles     => ActiveTab == "vehicles";
+        public bool ShowVehModels    => ActiveTab == "vehicle_models";
+        public bool ShowRouteAnalytics => ActiveTab == "route_analytics";
 
         partial void OnActiveTabChanged(string value)
         {
@@ -53,11 +59,42 @@ namespace PassFlow_Tracker.UI.ViewModels
             OnPropertyChanged(nameof(ShowTrips));
             OnPropertyChanged(nameof(ShowDailyRecords));
             OnPropertyChanged(nameof(ShowAllData));
+            OnPropertyChanged(nameof(ShowVehicles));
+            OnPropertyChanged(nameof(ShowVehicleModels));
+            OnPropertyChanged(nameof(ShowRouteAnalytics));
         }
 
         private const string LogContext = "MainWindowViewModel";
 
-        public MainWindowViewModel() { }
+        public MainWindowViewModel()
+        {
+            Analytics = new AnalyticsViewModel(_ipc, setStatus: msg => Status = msg);
+
+            Calendar = new CalendarViewModel(
+                onFilterApplied: () => _ = SetActiveTab(ActiveTab),
+                flowLoader: async (from, to) =>
+                {
+                    var response = await _ipc.SendAsync(new IpcRequest
+                    {
+                        Command = "daily_flow",
+                        Parameters = new()
+                        {
+                            ["from"] = from.ToString("yyyy-MM-dd"),
+                            ["to"] = to.ToString("yyyy-MM-dd")
+                        }
+                    });
+
+                    if (response.Success && response.Data != null)
+                    {
+                        var json = JsonSerializer.Serialize(response.Data);
+                        return JsonSerializer.Deserialize<Dictionary<DateOnly, long>>(json)
+                               ?? new Dictionary<DateOnly, long>();
+                    }
+
+                    return new Dictionary<DateOnly, long>();
+                }
+            );
+        }
 
         [RelayCommand]
         public async Task InitializeAsync()
@@ -96,6 +133,16 @@ namespace PassFlow_Tracker.UI.ViewModels
         }
 
         [ObservableProperty]
+        private TopStopsMode currentTopStopsMode = TopStopsMode.AllTime;
+
+        public bool IsRouteColumnVisible => CurrentTopStopsMode == TopStopsMode.PerRecord;
+
+        partial void OnCurrentTopStopsModeChanged(TopStopsMode value)
+        {
+            OnPropertyChanged(nameof(IsRouteColumnVisible));
+        }
+
+        [ObservableProperty]
         private int topN = 10;
 
         [ObservableProperty]
@@ -126,54 +173,7 @@ namespace PassFlow_Tracker.UI.ViewModels
         public string GradientButtonLabel =>
             GradientActive ? "Вкл. Градиент" : "Выкл. Градиент";
 
-
-        [ObservableProperty]
-        private bool showCalendar;
-
-        [ObservableProperty]
-        private string calendarMode = "days";
-
-        partial void OnCalendarModeChanged(string value)
-        {
-            OnPropertyChanged(nameof(CalendarTitle));
-        }
-
-        [ObservableProperty]
-        private int calendarYear = 2025;
-
-        partial void OnCalendarYearChanged(int value)
-        {
-            OnPropertyChanged(nameof(CalendarTitle));
-        }
-
-        [ObservableProperty]
-        private int calendarMonth = 6;
-
-        partial void OnCalendarMonthChanged(int value)
-        {
-            OnPropertyChanged(nameof(CalendarTitle));
-        }
-
-        public string CalendarTitle
-        {
-            get
-            {
-                string[] months =
-                {
-                "Январь","Февраль","Март","Апрель","Май","Июнь",
-                "Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"
-            };
-
-                if (CalendarMode == "days")
-                    return $"{months[CalendarMonth - 1]} {CalendarYear}";
-
-                if (CalendarMode == "months")
-                    return $"{CalendarYear}";
-
-                return $"{CalendarYear - 5} – {CalendarYear + 6}";
-            }
-        }
-
+        public CalendarViewModel Calendar { get; }
 
         [RelayCommand]
         private void SwitchToTable() => IsTableView = true;
@@ -186,12 +186,6 @@ namespace PassFlow_Tracker.UI.ViewModels
 
         [RelayCommand]
         private void ToggleGradient() => GradientActive = !GradientActive;
-
-        [RelayCommand]
-        private void ToggleCalendar() => ShowCalendar = !ShowCalendar;
-
-        [RelayCommand]
-        private void SetCalendarMode(string mode) => CalendarMode = mode;
 
         [RelayCommand]
         private async Task SetActiveTab(string tab)
@@ -223,8 +217,6 @@ namespace PassFlow_Tracker.UI.ViewModels
 
             AppLogger.Info($"[{LogContext}] Переключение на вкладку: {tab}");
 
-            ActiveTab = tab;
-
             try
             {
                 switch (tab)
@@ -253,37 +245,14 @@ namespace PassFlow_Tracker.UI.ViewModels
                 Status = $"Ошибка: {ex.Message}";
             }
         }
-        
-        [RelayCommand]
-        private void CalendarPrev()
-        {
-            if (CalendarMode == "days")
-            {
-                CalendarMonth--;
-                if (CalendarMonth < 1)
-                {
-                    CalendarMonth = 12;
-                    CalendarYear--;
-                }
-            }
-            else if (CalendarMode == "months") CalendarYear--;
-            else CalendarYear -= 12;
-        }
+
 
         [RelayCommand]
-        private void CalendarNext()
+        private async Task OpenRouteAnalytics()
         {
-            if (CalendarMode == "days")
-            {
-                CalendarMonth++;
-                if (CalendarMonth > 12)
-                {
-                    CalendarMonth = 1;
-                    CalendarYear++;
-                }
-            }
-            else if (CalendarMode == "months") CalendarYear++;
-            else CalendarYear += 12;
+            ActiveTab = "route_analytics";
+            OnPropertyChanged(nameof(ShowRouteAnalytics));
+            await Analytics.LoadRoutesAsync();
         }
 
         [RelayCommand]
@@ -491,7 +460,17 @@ namespace PassFlow_Tracker.UI.ViewModels
             List<RouteItem>? routes = null;
             try
             {
-                var routesResp = await _ipc.SendAsync(new IpcRequest { Command = "routes" });
+                string? dateFilterJson = GetDateFilter();
+
+                var parameters = new Dictionary<string, string>();
+                if (dateFilterJson != null) parameters["dateFilter"] = dateFilterJson;
+
+                var routesResp = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "routes",
+                    Parameters = parameters.Count > 0 ? parameters : null
+                });
+
                 if (routesResp.Success && routesResp.Data != null)
                 {
                     var json = JsonSerializer.Serialize(routesResp.Data, JsonSerializerDefaults.OutputOptions);
@@ -584,6 +563,8 @@ namespace PassFlow_Tracker.UI.ViewModels
                 return;
             }
 
+            CurrentTopStopsMode = (TopStopsMode)result;
+
             ActiveTab = "trip_stops";
 
             try
@@ -612,7 +593,8 @@ namespace PassFlow_Tracker.UI.ViewModels
                             {
                                 StopNumber  = d.StopNumber,
                                 StopName    = d.StopName,
-                                Label       = d.Label,
+                                Period = d.Period,
+                                RouteName = d.RouteName,
                                 Entered     = d.Entered,
                                 Exited      = d.Exited,
                                 Transported = d.Transported
@@ -700,16 +682,203 @@ namespace PassFlow_Tracker.UI.ViewModels
         }
 
         [RelayCommand]
+        private async Task OpenVehicles()
+        {
+            AppLogger.Info($"[{LogContext}] Запрос: транспорт");
+
+            ActiveTab = "vehicles";
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest { Command = "vehicles" });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    var data = JsonSerializer.Deserialize<List<VehicleInfo>>(json);
+
+                    Vehicles.Clear();
+                    if (data != null)
+                        foreach (var v in data)
+                            Vehicles.Add(new VehicleViewModel
+                            {
+                                Id = v.Id,
+                                UnitName = v.UnitName,
+                                ModelId = v.ModelId,
+                                Description = v.Description ?? ""
+                            });
+
+                    Status = $"Транспорт: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Транспорт загружен: {data?.Count ?? 0} записей");
+                }
+
+                var modelsResp = await _ipc.SendAsync(new IpcRequest { Command = "vehicle_models" });
+                if (modelsResp.Success && modelsResp.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(modelsResp.Data);
+                    var data = JsonSerializer.Deserialize<List<VehicleModelInfo>>(json);
+                    AvailableModels.Clear();
+                    if (data != null)
+                        foreach (var m in data)
+                            AvailableModels.Add(new VehicleModelViewModel
+                            {
+                                Id = m.Id,
+                                Name = m.Name,
+                                Seats = m.Seats,
+                                Capacity = m.Capacity,
+                                Description = m.Description ?? ""
+                            });
+
+                    foreach (var vehicle in Vehicles)
+                    {
+                        vehicle.SelectedModel = AvailableModels.FirstOrDefault(m => m.Id == vehicle.ModelId);
+                    }
+
+                    AppLogger.Info($"[{LogContext}] Доступные модели загружены: {data?.Count ?? 0} записей");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
+
+        private string _vehiclesSubTab = "list";
+        public bool ShowVehicleModels => ShowVehicles && _vehiclesSubTab == "models";
+        public bool ShowVehiclesList => ShowVehicles && _vehiclesSubTab == "list";
+
+        [RelayCommand]
+        private void SetVehiclesSubTab(string tab)
+        {
+            _vehiclesSubTab = tab;
+            OnPropertyChanged(nameof(ShowVehicleModels));
+            OnPropertyChanged(nameof(ShowVehiclesList));
+        }
+
+        [RelayCommand]
+        private async Task OpenVehicleModels()
+        {
+            AppLogger.Info($"[{LogContext}] Запрос: модели транспорта");
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest { Command = "vehicle_models" });
+
+                if (response.Success && response.Data != null)
+                {
+                    var json = JsonSerializer.Serialize(response.Data);
+                    var data = JsonSerializer.Deserialize<List<VehicleModelInfo>>(json);
+
+                    VehicleModels.Clear();
+                    if (data != null)
+                        foreach (var m in data)
+                            VehicleModels.Add(new VehicleModelViewModel
+                            {
+                                Id = m.Id,
+                                Name = m.Name,
+                                Seats = m.Seats,
+                                Capacity = m.Capacity,
+                                Description = m.Description ?? ""
+                            });
+
+                    Status = $"Модели транспорта: {data?.Count ?? 0}";
+                    AppLogger.Info($"[{LogContext}] Модели транспорта загружены: {data?.Count ?? 0} записей");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка загрузки моделей транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        public async Task SaveVehicle(VehicleViewModel vehicle)
+        {
+            AppLogger.Info($"[{LogContext}] Сохранение: транспорт");
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "update_vehicle",
+                    Parameters = new()
+                    {
+                        ["id"] = vehicle.Id.ToString(),
+                        ["unit_name"] = vehicle.UnitName,
+                        ["model_id"] = vehicle.ModelId.ToString(),
+                        ["description"] = vehicle.Description
+                    }
+                });
+
+                Status = response.Message;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка сохранения транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        public async Task SaveModel(VehicleModelViewModel model)
+        {
+            AppLogger.Info($"[{LogContext}] Сохранение: модели транспорт");
+
+            try
+            {
+                var response = await _ipc.SendAsync(new IpcRequest
+                {
+                    Command = "update_vehicle_model",
+                    Parameters = new()
+                    {
+                        ["id"] = model.Id.ToString(),
+                        ["seats"] = model.Seats.ToString(),
+                        ["capacity"] = model.Capacity.ToString(),
+                        ["description"] = model.Description
+                    }
+                });
+                Status = response.Message;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Ошибка сохранения моделей транспорта", ex);
+                Status = $"Ошибка: {ex.Message}";
+            }
+        }
+
+        private string? GetDateFilter()
+        {
+            if (Calendar.IsFilterApplied && Calendar.FilterStartDate != null && Calendar.FilterEndDate != null)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    from = Calendar.FilterStartDate.Value.ToString("yyyy-MM-dd"),
+                    to = Calendar.FilterEndDate.Value.ToString("yyyy-MM-dd")
+                });
+            }
+
+            return null;
+        } 
+
+        [RelayCommand]
         private async Task LoadTripStops()
         {
             AppLogger.Info($"[{LogContext}] Загрузка остановок");
             Status = "Загрузка остановок...";
+
+            CurrentTopStopsMode = TopStopsMode.AllTime;
+
+            string? dateFilterJson = GetDateFilter();
 
             try
             {
                 await LoadDataToCollection(
                 command: "trip_stops",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
@@ -718,7 +887,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                     {
                         var vm = new TripStopRowViewModel();
                         vm.SetOriginalValues(d.Id,
-                            d.StopNumber, d.StopName, label: d.StopName, 
+                            d.StopNumber, d.StopName, d.Period, "",
                             d.Entered, d.Exited, d.Transported);
                         TripStops.Add(vm);
                     });
@@ -739,11 +908,14 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Загрузка всех данных (дерево)");
             Status = "Загрузка всех данных...";
 
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                     command: "all_data",
                     idsJson: null,
+                    dateFilterJson: dateFilterJson,
                     onSuccess: json =>
                     {
                         var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
@@ -820,11 +992,15 @@ namespace PassFlow_Tracker.UI.ViewModels
         private async Task LoadDailyRecords()        {
             AppLogger.Info($"[{LogContext}] Загрузка дней");
             Status = "Загрузка дней...";
+
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                 command: "daily_records",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
@@ -858,11 +1034,14 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Загрузка кругов");
             Status = "Загрузка кругов...";
 
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                 command: "rounds",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
@@ -899,11 +1078,14 @@ namespace PassFlow_Tracker.UI.ViewModels
             AppLogger.Info($"[{LogContext}] Загрузка рейсов");
             Status = "Загрузка рейсов...";
 
+            string? dateFilterJson = GetDateFilter();
+
             try
             {
                 await LoadDataToCollection(
                 command: "trips",
                 idsJson: null,
+                dateFilterJson: dateFilterJson,
                 onSuccess: json =>
                 {
                     var data = JsonSerializer.Deserialize<List<TripRow>>(json);
@@ -946,6 +1128,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "trip_stops",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<TripStopRow>>(json);
@@ -955,7 +1138,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                                     var vm = new TripStopRowViewModel();
                                     vm.SetOriginalValues(
                                         d.Id,
-                                        d.StopNumber, d.StopName, label: d.StopName,
+                                        d.StopNumber, d.StopName, d.Period, "",
                                         d.Entered, d.Exited, d.Transported);
                                     TripStops.Add(vm);
                                 });
@@ -968,6 +1151,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "all_data",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<AllDataDayDto>>(json, JsonSerializerDefaults.SafeOptions);
@@ -1037,6 +1221,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "trips",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<TripRow>>(json);
@@ -1065,6 +1250,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "rounds",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<RoundRow>>(json);
@@ -1093,6 +1279,7 @@ namespace PassFlow_Tracker.UI.ViewModels
                         await LoadDataToCollection(
                             command: "daily_records",
                             idsJson: idsJson,
+                            dateFilterJson: null,
                             onSuccess: json =>
                             {
                                 var data = JsonSerializer.Deserialize<List<DailyRecordRow>>(json);
@@ -1125,16 +1312,15 @@ namespace PassFlow_Tracker.UI.ViewModels
         private async Task LoadDataToCollection(
             string command,
             string? idsJson,
+            string? dateFilterJson,
             Action<string> onSuccess,
             string errorMessage)
         {
             try
             {
                 var parameters = new Dictionary<string, string>();
-                if (idsJson != null)
-                {
-                    parameters["ids"] = idsJson;
-                }
+                if (idsJson != null) parameters["ids"] = idsJson;
+                if (dateFilterJson != null) parameters["dateFilter"] = dateFilterJson; 
 
                 var response = await _ipc.SendAsync(new IpcRequest
                 {
@@ -1249,7 +1435,7 @@ namespace PassFlow_Tracker.UI.ViewModels
             {
                 Id = ts.TripStopId,
                 ts.StopNumber,
-                StopName = ts.Label,
+                ts.StopName,
                 ts.TimeFrom,
                 ts.TimeTo,
                 ts.Entered,

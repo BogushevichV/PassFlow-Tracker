@@ -44,5 +44,24 @@ namespace PassFlow_Tracker.UI.Views
                 }
             }
         }
+
+        private void Vehicle_PointerEnter(object? sender, Avalonia.Input.PointerEventArgs e)
+        {
+            if (sender is Border border && border.DataContext is DayVehicleViewModel vehicle)
+            {
+                if (DataContext is MainWindowViewModel vm)
+                {
+                    vm.Analytics.HighlightVehicleCommand.Execute(vehicle);
+                }
+            }
+        }
+
+        private void Vehicle_PointerLeave(object? sender, Avalonia.Input.PointerEventArgs e)
+        {
+            if (DataContext is MainWindowViewModel vm)
+            {
+                vm.Analytics.HighlightVehicleCommand.Execute(null);
+            }
+        }
     }
 }

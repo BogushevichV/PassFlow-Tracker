@@ -45,6 +45,7 @@ namespace PassFlow_Tracker.Domain.Models
         int Id,
         int StopNumber,
         string StopName,
+        string Period,
         int Entered,
         int Exited,
         int Transported);
@@ -57,7 +58,8 @@ namespace PassFlow_Tracker.Domain.Models
         int Id,
         int StopNumber,
         string StopName,
-        string Label,       // название + дата/период для отображения
+        string Period,
+        string RouteName,
         int Entered,
         int Exited,
         int Transported);
@@ -91,6 +93,89 @@ namespace PassFlow_Tracker.Domain.Models
         int Entered,
         int Exited,
         int Transported);
+
+    public record VehicleModelInfo(
+        int Id,
+        string Name,
+        int Seats,
+        int Capacity,
+        string? Description
+    );
+
+    public record VehicleInfo(
+        int Id,
+        string UnitName,
+        int ModelId,
+        string ModelName,
+        int Seats,         
+        int Capacity,      
+        string? Description
+    );
+
+    public record RouteInfo(
+        string RouteNumber,
+        string StartPoint,
+        string EndPoint
+    );
+
+    public record RouteStopInfo(
+        int StopNumber,
+        string StopName,
+        int TotalEntered,
+        int TotalExited,
+        double AvgTransported
+    );
+
+    public enum SchemeLevel { RouteAllTime, Day, Trip }
+
+    public record RouteSchemeData(
+        int StopNumber,
+        string StopName,
+        int Entered,
+        int Exited,
+        int Transported,
+        double FillPercent
+    );
+
+    public record DaySummary(
+        string Date,
+        int TripCount,
+        List<DayVehicleInfo> Vehicles,
+        List<RouteSchemeData> Stops  
+    );
+
+    public record DayVehicleInfo(
+        int VehicleId,
+        string VehicleName,
+        string ModelName,
+        int Seats,
+        int Capacity,
+        int TripCount
+    );
+
+    public record TripDetailSummary(
+        int TripId,
+        string TimeFrom,       
+        string TimeTo,        
+        string VehicleName,     
+        string ModelName,      
+        int Capacity,
+        int Seats,
+        List<TripStopDetail> Stops
+    );
+
+    public record TripStopDetail(
+        int StopNumber,
+        string StopName,
+        string TimeFrom,        
+        string TimeTo,         
+        int Entered,
+        int Exited,
+        int Transported,
+        double FillPercent    
+    );
+
+    public record TripSummary(int TripId, string TimeFrom, string VehicleName, string ModelName, int Capacity);
 
     // --- Иерархические DTO для вкладки "Все данные" ---
     public class AllDataStopDto

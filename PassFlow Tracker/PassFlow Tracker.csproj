@@ -3,7 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
-    <AssemblyName>PassFlowTracker</AssemblyName>
+    <AssemblyName>PassFlow Tracker</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
@@ -36,6 +36,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
     <PackageReference Include="Npgsql" Version="10.0.1" />
+    <PackageReference Include="Xaml.Behaviors.Avalonia" Version="11.3.9.6" />
   </ItemGroup>
   
   <ItemGroup>

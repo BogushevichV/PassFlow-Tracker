@@ -3,6 +3,7 @@ using DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using DocumentFormat.OpenXml.InkML;
 using DocumentFormat.OpenXml.Office2010.Excel;
 using DocumentFormat.OpenXml.Wordprocessing;
+using PassFlow_Tracker.UI.ViewModels.Core;
 
 namespace PassFlow_Tracker.UI.ViewModels
 {
