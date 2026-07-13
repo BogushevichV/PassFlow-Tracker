@@ -5,6 +5,7 @@ using PassFlow_Tracker.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -49,10 +50,49 @@ namespace PassFlow_Tracker.Infrastructure.Docker
         {
             Console.WriteLine("\n\t2. Проверка наличия образа");
 
-            await _client.Images.CreateImageAsync(
-                new ImagesCreateParameters { FromImage = _settings.ImageName, Tag = _settings.Tag },
-                null,
-                new Progress<JSONMessage>(m => Console.WriteLine($"Download: {m.Status}")));
+            var images = await _client.Images.ListImagesAsync(
+            new ImagesListParameters
+            {
+                Filters = new Dictionary<string, IDictionary<string, bool>>
+                {
+                    ["reference"] = new Dictionary<string, bool>
+                    {
+                        [$"{_settings.ImageName}:{_settings.Tag}"] = true
+                    }
+                }
+            });
+
+            if (images.Any())
+            {
+                Console.WriteLine("Образ уже существует локально.");
+                return;
+            }
+
+            try
+            {
+                await _client.Images.CreateImageAsync(
+                    new ImagesCreateParameters { FromImage = _settings.ImageName, Tag = _settings.Tag },
+                    null,
+                    new Progress<JSONMessage>(m => Console.WriteLine($"Download: {m.Status}")));
+            }
+            catch (DockerApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.InternalServerError)
+            {
+                var message = ex.Message.ToLower();
+                if (message.Contains("no such host") ||
+                    message.Contains("dial tcp") ||
+                    message.Contains("lookup"))
+                {
+                    throw new InvalidOperationException(
+                        "Не удалось загрузить образ PostgreSQL. Проверьте подключение к интернету.");
+                }
+
+                throw;
+            }
+            catch (HttpRequestException)
+            {
+                throw new InvalidOperationException(
+                    "Не удалось подключиться к Docker Hub. Проверьте подключение к интернету.");
+            }
         }
 
         private async Task StartContainer()
@@ -84,7 +124,6 @@ namespace PassFlow_Tracker.Infrastructure.Docker
 
             Console.WriteLine("Создание нового контейнера...");
 
-            // Настройка портов (5532 на хосте -> 5432 в контейнере)
             var hostConfig = new HostConfig
             {
                 PortBindings = new Dictionary<string, IList<PortBinding>>
@@ -100,7 +139,11 @@ namespace PassFlow_Tracker.Infrastructure.Docker
                 {
                     Image = $"{_settings.ImageName}:{_settings.Tag}",
                     Name = _settings.ContainerName,
-                    Env = new List<string> { $"POSTGRES_PASSWORD={_settings.Password}" },
+                    Env = new List<string>
+                    {
+                        $"POSTGRES_PASSWORD={_settings.Password}",
+                        "PGDATA=/var/lib/postgresql/data"
+                    },
                     HostConfig = hostConfig
                 });
 
@@ -124,8 +167,9 @@ namespace PassFlow_Tracker.Infrastructure.Docker
                     Console.WriteLine("PostgreSQL готов к работе.");
                     return;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Console.WriteLine($"Ошибка {ex.Message} {ex.Data}...");
                     Console.WriteLine($"Попытка {i}/{maxRetries}: PostgreSQL ещё запускается...");
                     await Task.Delay(delayMs);
                 }

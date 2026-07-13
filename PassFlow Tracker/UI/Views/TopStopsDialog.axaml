@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PassFlow_Tracker.UI.ViewModels"
+        x:Class="PassFlow_Tracker.UI.Views.TopStopsDialog"
+        Title="Топ остановок — параметры"
+        Width="320" Height="220"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC">
+
+  <Window.Styles>
+    <Style Selector="RadioButton">
+      <Setter Property="Foreground" Value="#334155"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#2563EB"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Padding" Value="20,8"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.cancel">
+      <Setter Property="Background" Value="#F1F5F9"/>
+      <Setter Property="Foreground" Value="#475569"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Padding" Value="20,8"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+  </Window.Styles>
+
+  <Border Padding="24,20">
+    <StackPanel Spacing="16">
+
+      <TextBlock Text="Режим агрегации" FontWeight="SemiBold" FontSize="14"
+                 Foreground="#1E293B"/>
+
+      <StackPanel Spacing="10">
+        <RadioButton x:Name="RadioPerRecord" Content="По отдельности (каждая запись)"
+                     GroupName="mode" IsChecked="True"/>
+        <RadioButton x:Name="RadioPerDay"    Content="Сумма за день"
+                     GroupName="mode"/>
+        <RadioButton x:Name="RadioAllTime"   Content="За всё время"
+                     GroupName="mode"/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,4,0,0">
+        <Button Classes="cancel" Content="Отмена" Click="OnCancel"/>
+        <Button Classes="primary" Content="Показать" Click="OnOk"/>
+      </StackPanel>
+
+    </StackPanel>
+  </Border>
+</Window>

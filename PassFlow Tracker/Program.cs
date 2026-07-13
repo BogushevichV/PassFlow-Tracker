@@ -1,6 +1,8 @@
 ﻿using Avalonia;
 using PassFlow_Tracker.Application.Services;
+using PassFlow_Tracker.Infrastructure.Database;
 using System;
+using System.Threading.Tasks;
 
 namespace PassFlow_Tracker
 {
@@ -10,8 +12,25 @@ namespace PassFlow_Tracker
         // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
         // yet and stuff might break.
         [STAThread]
-        public static void Main(string[] args) => BuildAvaloniaApp()
-            .StartWithClassicDesktopLifetime(args);
+        public static async Task Main(string[] args)
+        {
+            try
+            {
+                var db = new DbConnectionFactory();
+
+                var dbInitializer = new DatabaseInitializer(db);
+                await dbInitializer.StartAndInitializeAsync();
+
+                BuildAvaloniaApp()
+                    .StartWithClassicDesktopLifetime(args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ошибка запуска: " + ex.Message);
+            }
+        }
+
+
 
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()

@@ -2,6 +2,7 @@
 using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Infrastructure.Database;
+using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,10 +11,14 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+using JsonSerializerDefaults = PassFlow_Tracker.Infrastructure.Serialization.JsonSerializerDefaults;
+
 namespace PassFlow_Tracker.Application.Services
 {
     public class JsonImportService
     {
+        private const string LogContext = "JsonImportService";
+
         private readonly DbConnectionFactory _db;
 
         public JsonImportService(DbConnectionFactory db)
@@ -21,51 +26,81 @@ namespace PassFlow_Tracker.Application.Services
             _db = db;
         }
 
-        public async Task ImportAsync(string filePath)
+        public async Task<List<int>> ImportAsync(string filePath)
         {
             if (!File.Exists(filePath))
             {
-                Console.WriteLine("Файл не найден.");
-                return;
+                AppLogger.Warning($"[{LogContext}] Файл не найден: {filePath}");
+                throw new FileNotFoundException("Файл не найден", filePath);
             }
 
-            string json = await File.ReadAllTextAsync(filePath);
+            AppLogger.Info($"[{LogContext}] Начало импорта: {filePath}");
+            var importedIds = new List<int>();
+            var startTime = DateTime.Now;
 
-            var options = new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
-            };
+                string json = await File.ReadAllTextAsync(filePath);
+                AppLogger.Info($"[{LogContext}] Файл прочитан: {json.Length} байт");
 
-            var records = JsonSerializer.Deserialize<List<RootRecord>>(json, options);
+                var records = JsonSerializer.Deserialize<List<RootRecord>>(json, JsonSerializerDefaults.FileImportOptions);
 
-            if (records == null)
-            {
-                Console.WriteLine("Ошибка десериализации JSON.");
-                return;
+                if (records == null)
+                {
+                    AppLogger.Error($"[{LogContext}] Ошибка десериализации JSON");
+                    throw new InvalidOperationException("Ошибка десериализации JSON");
+                }
+
+                AppLogger.Info($"[{LogContext}] Десериализовано записей: {records.Count}");
+
+                int successCount = 0;
+                int errorCount = 0;
+
+                foreach (var record in records)
+                {
+                    try
+                    {
+                        int dailyId = await SaveRecordAsync(record);
+                        importedIds.Add(dailyId);
+                        successCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        errorCount++;
+                        AppLogger.Error($"[{LogContext}] Ошибка сохранения записи '{record.Unit}' от {record.Date}", ex);
+                    }
+                }
+
+                var duration = (DateTime.Now - startTime).TotalMilliseconds;
+                AppLogger.Info($"[{LogContext}] Импорт завершён за {duration:F0}мс. Успешно: {successCount}, ошибок: {errorCount}");
+                return importedIds;
             }
-
-            foreach (var record in records)
+            catch (Exception ex)
             {
-                await SaveRecordAsync(record);
+                AppLogger.Error($"[{LogContext}] Критическая ошибка импорта", ex);
+                throw;
             }
-
-            Console.WriteLine("Импорт завершён.");
         }
 
-        private async Task SaveRecordAsync(RootRecord data)
+
+        private async Task<int> SaveRecordAsync(RootRecord data)
         {
+            AppLogger.Info($"[{LogContext}] Сохранение записи: {data.Unit}, {data.Date}");
+
             await using var connection = _db.CreateConnection();
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
 
             try
             {
-                var dailyCmd = new NpgsqlCommand(@"
-            INSERT INTO daily_records (unit_name, record_date, entered, exited, transported)
-            VALUES (@unit, @date, @entered, @exited, @transported)
-            RETURNING id;", connection);
+                int vehicleId = await VehicleDataAccess.EnsureVehicleIdAsync(connection, data.Unit, transaction);
 
-                dailyCmd.Parameters.AddWithValue("@unit", data.Unit);
+                var dailyCmd = new NpgsqlCommand(@"
+            INSERT INTO daily_records (vehicle_id, record_date, entered, exited, transported)
+            VALUES (@vehicleId, @date, @entered, @exited, @transported)
+            RETURNING id;", connection, transaction);
+
+                dailyCmd.Parameters.AddWithValue("@vehicleId", vehicleId);
                 dailyCmd.Parameters.AddWithValue("@date", DateTime.Parse(data.Date));
                 dailyCmd.Parameters.AddWithValue("@entered", data.Count.Entered);
                 dailyCmd.Parameters.AddWithValue("@exited", data.Count.Exited);
@@ -78,7 +113,7 @@ namespace PassFlow_Tracker.Application.Services
                     var roundCmd = new NpgsqlCommand(@"
                 INSERT INTO rounds (daily_record_id, start_point, end_point, time_from, time_to, entered, exited, transported)
                 VALUES (@dailyId, @start, @end, @from, @to, @entered, @exited, @transported)
-                RETURNING id;", connection);
+                RETURNING id;", connection, transaction);
 
                     roundCmd.Parameters.AddWithValue("@dailyId", dailyId);
                     roundCmd.Parameters.AddWithValue("@start", round.Start);
@@ -96,7 +131,7 @@ namespace PassFlow_Tracker.Application.Services
                         var tripCmd = new NpgsqlCommand(@"
                     INSERT INTO trips (round_id, start_point, end_point, time_from, time_to, entered, exited, transported)
                     VALUES (@roundId, @start, @end, @from, @to, @entered, @exited, @transported)
-                    RETURNING id;", connection);
+                    RETURNING id;", connection, transaction);
 
                         tripCmd.Parameters.AddWithValue("@roundId", roundId);
                         tripCmd.Parameters.AddWithValue("@start", trip.Start);
@@ -113,7 +148,7 @@ namespace PassFlow_Tracker.Application.Services
                         {
                             var stopCmd = new NpgsqlCommand(@"
                         INSERT INTO trip_stops (trip_id, stop_number, stop_name, is_duplicate, is_skipped, time_from, time_to, entered, exited, transported)
-                        VALUES (@tripId, @num, @name, @dup, @skip, @from, @to, @entered, @exited, @transported);", connection);
+                        VALUES (@tripId, @num, @name, @dup, @skip, @from, @to, @entered, @exited, @transported);", connection, transaction);
 
                             stopCmd.Parameters.AddWithValue("@tripId", tripId);
                             stopCmd.Parameters.AddWithValue("@num", stop.Id);
@@ -132,9 +167,14 @@ namespace PassFlow_Tracker.Application.Services
                 }
 
                 await transaction.CommitAsync();
+
+                AppLogger.Info($"[{LogContext}] Запись '{data.Unit}' от {data.Date} сохранена успешно");
+
+                return dailyId;
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Error($"[{LogContext}] Ошибка сохранения записи '{data.Unit}' от {data.Date}", ex);
                 await transaction.RollbackAsync();
                 throw;
             }

@@ -4,6 +4,7 @@ using Npgsql;
 using PassFlow_Tracker.Configuration;
 using PassFlow_Tracker.Infrastructure.Database;
 using PassFlow_Tracker.Infrastructure.Docker;
+using PassFlow_Tracker.Infrastructure.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +12,8 @@ using System.Threading.Tasks;
 
 public class DatabaseInitializer
 {
+    private const string LogContext = "DatabaseInitializer";
+
     private readonly DbConnectionFactory _db;
 
     public DatabaseInitializer(DbConnectionFactory db)
@@ -20,22 +23,35 @@ public class DatabaseInitializer
 
     public async Task StartAndInitializeAsync()
     {
-        var docker = new DockerPostgresManager();
+        AppLogger.Info($"[{LogContext}] Начало инициализации БД");
 
-        await docker.StartAsync();
+        try
+        {
+            var docker = new DockerPostgresManager();
 
-        // 1. Проверяем существует ли БД
-        await EnsureDatabaseExistsAsync();
+            await docker.StartAsync();
 
-        // 2. Инициализируем таблицы
-        await CreateTablesAsync();
+            // 1. Проверяем существует ли БД
+            await EnsureDatabaseExistsAsync();
 
-        Console.WriteLine("\nИнициализация успешно завершена!\n");
+            // 2. Инициализируем таблицы
+            await CreateTablesAsync();
+
+            // 3. Миграция со старой схемы (unit_name → vehicles)
+            await MigrateSchemaAsync();
+
+            AppLogger.Info($"[{LogContext}] Инициализация БД завершена успешно");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[{LogContext}] Ошибка инициализации БД", ex);
+            throw;
+        }
     }
 
     private async Task EnsureDatabaseExistsAsync()
     {
-        Console.WriteLine("\n\t5. Проверка наличия БД");
+        AppLogger.Info($"[{LogContext}] Проверка наличия БД");
 
         using var connection = _db.CreateAdminConnection();
         await connection.OpenAsync();
@@ -47,7 +63,7 @@ public class DatabaseInitializer
 
         if (exists == null)
         {
-            Console.WriteLine("База данных passflowtrackerdb не найдена. Создаём...");
+            AppLogger.Info($"[{LogContext}] БД не найдена, создаём...");
 
             using var createCmd = new NpgsqlCommand(
                 "CREATE DATABASE passflowtrackerdb",
@@ -55,20 +71,37 @@ public class DatabaseInitializer
 
             await createCmd.ExecuteNonQueryAsync();
 
-            Console.WriteLine("База данных создана.\n");
+            AppLogger.Info($"[{LogContext}] БД создана");
         }
         else
         {
-            Console.WriteLine("База данных уже существует.\n");
+            AppLogger.Info($"[{LogContext}] БД уже существует");
         }
     }
 
     private async Task CreateTablesAsync()
     {
+        AppLogger.Info($"[{LogContext}] Создание таблиц...");
+
         string sql = @"
+            CREATE TABLE IF NOT EXISTS vehicle_models (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL UNIQUE,
+                seats INT NOT NULL DEFAULT 40,
+                capacity INT NOT NULL DEFAULT 60,
+                description VARCHAR(500)
+            );
+
+            CREATE TABLE IF NOT EXISTS vehicles (
+                id SERIAL PRIMARY KEY,
+                unit_name VARCHAR(255) NOT NULL UNIQUE,
+                vehicle_model_id INT NOT NULL REFERENCES vehicle_models(id),
+                description VARCHAR(500)
+            );
+
             CREATE TABLE IF NOT EXISTS daily_records (
                 id SERIAL PRIMARY KEY,
-                unit_name VARCHAR(255) NOT NULL,
+                vehicle_id INT REFERENCES vehicles(id),
                 record_date DATE NOT NULL,
                 entered INT DEFAULT 0,
                 exited INT DEFAULT 0,
@@ -92,6 +125,7 @@ public class DatabaseInitializer
                 round_id INT NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
                 start_point VARCHAR(255),
                 end_point VARCHAR(255),
+                route_number VARCHAR(10),
                 time_from TIMESTAMPTZ,
                 time_to TIMESTAMPTZ,
                 entered INT DEFAULT 0,
@@ -122,7 +156,85 @@ public class DatabaseInitializer
         await connection.OpenAsync();
         using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
-        Console.WriteLine("Таблицы и индексы созданы.");
+
+        AppLogger.Info($"[{LogContext}] Таблицы созданы успешно");
+    }
+
+    private async Task MigrateSchemaAsync()
+    {
+        AppLogger.Info($"[{LogContext}] Проверка миграции схемы...");
+
+        using var connection = _db.CreateConnection();
+        await connection.OpenAsync();
+
+        if (!await ColumnExistsAsync(connection, "trips", "route_number"))
+        {
+            AppLogger.Info($"[{LogContext}] Добавление колонки trips.route_number");
+            using var cmd = new NpgsqlCommand(
+                "ALTER TABLE trips ADD COLUMN route_number VARCHAR(10)", connection);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        if (!await ColumnExistsAsync(connection, "daily_records", "vehicle_id"))
+        {
+            AppLogger.Info($"[{LogContext}] Добавление колонки daily_records.vehicle_id");
+            using var cmd = new NpgsqlCommand(@"
+                ALTER TABLE daily_records
+                ADD COLUMN vehicle_id INT REFERENCES vehicles(id)", connection);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        if (await ColumnExistsAsync(connection, "daily_records", "unit_name"))
+        {
+            AppLogger.Info($"[{LogContext}] Миграция unit_name → vehicles");
+
+            var defaultModelId = await VehicleDataAccess.EnsureDefaultModelIdAsync(connection);
+
+            using (var insertVehicles = new NpgsqlCommand(@"
+                INSERT INTO vehicles (unit_name, vehicle_model_id)
+                SELECT DISTINCT dr.unit_name, @modelId
+                FROM daily_records dr
+                WHERE dr.unit_name IS NOT NULL AND TRIM(dr.unit_name) <> ''
+                ON CONFLICT (unit_name) DO NOTHING", connection))
+            {
+                insertVehicles.Parameters.AddWithValue("@modelId", defaultModelId);
+                await insertVehicles.ExecuteNonQueryAsync();
+            }
+
+            using (var updateRecords = new NpgsqlCommand(@"
+                UPDATE daily_records dr
+                SET vehicle_id = v.id
+                FROM vehicles v
+                WHERE dr.unit_name = v.unit_name
+                  AND dr.vehicle_id IS NULL", connection))
+            {
+                await updateRecords.ExecuteNonQueryAsync();
+            }
+
+            using var dropColumn = new NpgsqlCommand(
+                "ALTER TABLE daily_records DROP COLUMN unit_name", connection);
+            await dropColumn.ExecuteNonQueryAsync();
+
+            AppLogger.Info($"[{LogContext}] Миграция unit_name завершена");
+        }
+
+        AppLogger.Info($"[{LogContext}] Схема актуальна");
+    }
+
+    private static async Task<bool> ColumnExistsAsync(
+        NpgsqlConnection connection, string tableName, string columnName)
+    {
+        const string sql = @"
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = @table
+              AND column_name = @column";
+
+        using var cmd = new NpgsqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@table", tableName);
+        cmd.Parameters.AddWithValue("@column", columnName);
+        return await cmd.ExecuteScalarAsync() != null;
     }
 
     public async Task PrintAllTablesAsync()
@@ -135,7 +247,9 @@ public class DatabaseInitializer
             "daily_records",
             "rounds",
             "trips",
-            "trip_stops"
+            "trip_stops",
+            "vehicle_models",
+            "vehicles"
         };
 
         foreach (var table in tables)
