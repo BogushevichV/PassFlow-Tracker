@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace PassFlow_Tracker.UI.ViewModels.Core
 {
-    public abstract partial class TrackedViewModel : ViewModelBase
+    public abstract partial class TrackedViewModel : GradientFormattableViewModel
     {
         public bool IsDirty { get; protected set; }
 

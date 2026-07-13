@@ -5,7 +5,7 @@ using System.Collections.ObjectModel;
 namespace PassFlow_Tracker.UI.ViewModels
 {
     // Узел остановки (листовой)
-    public partial class StopNodeViewModel : ViewModelBase
+    public partial class StopNodeViewModel : GradientFormattableViewModel
     {
         [ObservableProperty] private int _stopNumber;
         [ObservableProperty] private string _stopName = "";
@@ -25,7 +25,7 @@ namespace PassFlow_Tracker.UI.ViewModels
     }
 
     // Узел рейса
-    public partial class TripNodeViewModel : ViewModelBase
+    public partial class TripNodeViewModel : GradientFormattableViewModel
     {
         [ObservableProperty] private string _startPoint = "";
         [ObservableProperty] private string _endPoint = "";
@@ -44,7 +44,7 @@ namespace PassFlow_Tracker.UI.ViewModels
     }
 
     // Узел круга
-    public partial class RoundNodeViewModel : ViewModelBase
+    public partial class RoundNodeViewModel : GradientFormattableViewModel
     {
         [ObservableProperty] private string _startPoint = "";
         [ObservableProperty] private string _endPoint = "";
@@ -63,7 +63,7 @@ namespace PassFlow_Tracker.UI.ViewModels
     }
 
     // Узел дня (корневой)
-    public partial class DayNodeViewModel : ViewModelBase
+    public partial class DayNodeViewModel : GradientFormattableViewModel
     {
         [ObservableProperty] private string _unitName = "";
         [ObservableProperty] private string _recordDate = "";

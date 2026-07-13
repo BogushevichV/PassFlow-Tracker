@@ -11,6 +11,8 @@ using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Domain.Models.Communication;
 using PassFlow_Tracker.Infrastructure.Logging;
 using PassFlow_Tracker.UI.Views;
+using PassFlow_Tracker.UI.ViewModels.Core;
+using PassFlow_Tracker.UI.ViewModels.Formatting;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
@@ -62,6 +64,7 @@ namespace PassFlow_Tracker.UI.ViewModels
             OnPropertyChanged(nameof(ShowVehicles));
             OnPropertyChanged(nameof(ShowVehicleModels));
             OnPropertyChanged(nameof(ShowRouteAnalytics));
+            UpdateAvailableColumns();
         }
 
         private const string LogContext = "MainWindowViewModel";
@@ -94,6 +97,8 @@ namespace PassFlow_Tracker.UI.ViewModels
                     return new Dictionary<DateOnly, long>();
                 }
             );
+
+            UpdateAvailableColumns();
         }
 
         [RelayCommand]
@@ -140,6 +145,7 @@ namespace PassFlow_Tracker.UI.ViewModels
         partial void OnCurrentTopStopsModeChanged(TopStopsMode value)
         {
             OnPropertyChanged(nameof(IsRouteColumnVisible));
+            UpdateAvailableColumns();
         }
 
         [ObservableProperty]
@@ -162,16 +168,90 @@ namespace PassFlow_Tracker.UI.ViewModels
         partial void OnGradientActiveChanged(bool value)
         {
             OnPropertyChanged(nameof(GradientButtonLabel));
+            UpdateGradientVisibility();
         }
 
         [ObservableProperty]
         private bool showColorMenu;
 
         [ObservableProperty]
-        private string gradientDirection = "min-to-max";
+        private bool showCellFilterMenu;
+
+        [ObservableProperty]
+        private int gradientDirectionIndex;
+
+        [ObservableProperty]
+        private int selectedColorSchemeIndex;
+
+        [ObservableProperty]
+        private double gradientSteps = 5;
+
+        [ObservableProperty]
+        private ObservableCollection<ColumnItem> availableColumns = new();
+
+        [ObservableProperty]
+        private ColumnItem? selectedColumn;
+
+        private readonly Dictionary<string, HashSet<string>> _formattedColumnsByTab = new();
+
+        private static readonly Dictionary<string, List<ColumnItem>> TabColumns = new()
+        {
+            ["trip_stops"] =
+            [
+                new() { Header = "№ Остановки", PropertyName = nameof(TripStopRowViewModel.StopNumber), IsNumeric = true },
+                new() { Header = "Название", PropertyName = nameof(TripStopRowViewModel.StopName), IsNumeric = false },
+                new() { Header = "Период", PropertyName = nameof(TripStopRowViewModel.Period), IsNumeric = false },
+                new() { Header = "Имя маршрута", PropertyName = nameof(TripStopRowViewModel.RouteName), IsNumeric = false },
+                new() { Header = "Вошло", PropertyName = nameof(TripStopRowViewModel.Entered), IsNumeric = true },
+                new() { Header = "Вышло", PropertyName = nameof(TripStopRowViewModel.Exited), IsNumeric = true },
+                new() { Header = "Перевезено", PropertyName = nameof(TripStopRowViewModel.Transported), IsNumeric = true },
+            ],
+            ["rounds"] =
+            [
+                new() { Header = "Автобус", PropertyName = nameof(RoundRowViewModel.UnitName), IsNumeric = false },
+                new() { Header = "Откуда", PropertyName = nameof(RoundRowViewModel.StartPoint), IsNumeric = false },
+                new() { Header = "Куда", PropertyName = nameof(RoundRowViewModel.EndPoint), IsNumeric = false },
+                new() { Header = "Время От", PropertyName = nameof(RoundRowViewModel.TimeFrom), IsNumeric = false },
+                new() { Header = "Время До", PropertyName = nameof(RoundRowViewModel.TimeTo), IsNumeric = false },
+                new() { Header = "Вошло", PropertyName = nameof(RoundRowViewModel.Entered), IsNumeric = true },
+                new() { Header = "Вышло", PropertyName = nameof(RoundRowViewModel.Exited), IsNumeric = true },
+                new() { Header = "Перевезено", PropertyName = nameof(RoundRowViewModel.Transported), IsNumeric = true },
+            ],
+            ["trips"] =
+            [
+                new() { Header = "Автобус", PropertyName = nameof(TripRowViewModel.UnitName), IsNumeric = false },
+                new() { Header = "Откуда", PropertyName = nameof(TripRowViewModel.StartPoint), IsNumeric = false },
+                new() { Header = "Куда", PropertyName = nameof(TripRowViewModel.EndPoint), IsNumeric = false },
+                new() { Header = "Время От", PropertyName = nameof(TripRowViewModel.TimeFrom), IsNumeric = false },
+                new() { Header = "Время До", PropertyName = nameof(TripRowViewModel.TimeTo), IsNumeric = false },
+                new() { Header = "Вошло", PropertyName = nameof(TripRowViewModel.Entered), IsNumeric = true },
+                new() { Header = "Вышло", PropertyName = nameof(TripRowViewModel.Exited), IsNumeric = true },
+                new() { Header = "Перевезено", PropertyName = nameof(TripRowViewModel.Transported), IsNumeric = true },
+            ],
+            ["daily_records"] =
+            [
+                new() { Header = "Автобус", PropertyName = nameof(DailyRecordRowViewModel.UnitName), IsNumeric = false },
+                new() { Header = "Дата", PropertyName = nameof(DailyRecordRowViewModel.RecordDate), IsNumeric = false },
+                new() { Header = "Вошло", PropertyName = nameof(DailyRecordRowViewModel.Entered), IsNumeric = true },
+                new() { Header = "Вышло", PropertyName = nameof(DailyRecordRowViewModel.Exited), IsNumeric = true },
+                new() { Header = "Перевезено", PropertyName = nameof(DailyRecordRowViewModel.Transported), IsNumeric = true },
+            ],
+            ["all_data"] =
+            [
+                new() { Header = "Маршрут / Остановка", PropertyName = "Label", IsNumeric = false },
+                new() { Header = "Время", PropertyName = "Time", IsNumeric = false },
+                new() { Header = "Вошло", PropertyName = nameof(DayNodeViewModel.Entered), IsNumeric = true },
+                new() { Header = "Вышло", PropertyName = nameof(DayNodeViewModel.Exited), IsNumeric = true },
+                new() { Header = "В салоне", PropertyName = nameof(DayNodeViewModel.Transported), IsNumeric = true },
+            ],
+        };
 
         public string GradientButtonLabel =>
             GradientActive ? "Вкл. Градиент" : "Выкл. Градиент";
+
+        partial void OnGradientDirectionIndexChanged(int value) => RefreshAllFormattedColumns();
+        partial void OnSelectedColorSchemeIndexChanged(int value) => RefreshAllFormattedColumns();
+        partial void OnGradientStepsChanged(double value) => RefreshAllFormattedColumns();
 
         public CalendarViewModel Calendar { get; }
 
@@ -185,7 +265,141 @@ namespace PassFlow_Tracker.UI.ViewModels
         private void ToggleColorMenu() => ShowColorMenu = !ShowColorMenu;
 
         [RelayCommand]
+        private void ToggleCellFilterMenu()
+        {
+            UpdateAvailableColumns();
+            ShowCellFilterMenu = !ShowCellFilterMenu;
+        }
+
+        [RelayCommand]
+        private void SelectColorScheme(string index)
+        {
+            if (int.TryParse(index, out var schemeIndex))
+                SelectedColorSchemeIndex = schemeIndex;
+        }
+
+        [RelayCommand]
+        private void ApplyColumnFormatting()
+        {
+            if (SelectedColumn == null)
+            {
+                Status = "Выберите колонку";
+                return;
+            }
+
+            if (!SelectedColumn.IsNumeric)
+            {
+                Status = "Градиент применим только к числовым колонкам";
+                return;
+            }
+
+            if (!TabColumns.ContainsKey(ActiveTab))
+            {
+                Status = "Форматирование недоступно для этой вкладки";
+                return;
+            }
+
+            if (!_formattedColumnsByTab.TryGetValue(ActiveTab, out var formatted))
+            {
+                formatted = new HashSet<string>();
+                _formattedColumnsByTab[ActiveTab] = formatted;
+            }
+
+            formatted.Add(SelectedColumn.PropertyName);
+            ApplyFormattingToColumn(ActiveTab, SelectedColumn.PropertyName);
+            ShowCellFilterMenu = false;
+            Status = $"Форматирование применено к «{SelectedColumn.Header}»";
+        }
+
+        [RelayCommand]
         private void ToggleGradient() => GradientActive = !GradientActive;
+
+        private void UpdateAvailableColumns()
+        {
+            AvailableColumns.Clear();
+            if (!TabColumns.TryGetValue(ActiveTab, out var columns))
+            {
+                SelectedColumn = null;
+                return;
+            }
+
+            foreach (var column in columns)
+            {
+                if (ActiveTab == "trip_stops"
+                    && column.PropertyName == nameof(TripStopRowViewModel.RouteName)
+                    && !IsRouteColumnVisible)
+                    continue;
+
+                AvailableColumns.Add(column);
+            }
+
+            SelectedColumn = AvailableColumns.FirstOrDefault();
+        }
+
+        private GradientSettings BuildGradientSettings() => new()
+        {
+            MinToMax = GradientDirectionIndex == 0,
+            ColorSchemeIndex = SelectedColorSchemeIndex,
+            Steps = (int)Math.Round(GradientSteps),
+        };
+
+        private void ApplyFormattingToColumn(string tab, string propertyName)
+        {
+            var settings = BuildGradientSettings();
+            GradientFormatter.Apply(GetFormattableRows(tab), propertyName, settings);
+        }
+
+        private void RefreshAllFormattedColumns()
+        {
+            foreach (var (tab, columns) in _formattedColumnsByTab)
+            {
+                foreach (var column in columns)
+                    ApplyFormattingToColumn(tab, column);
+            }
+        }
+
+        private void UpdateGradientVisibility()
+        {
+            foreach (var row in GetFormattableRows(ActiveTab))
+                row.ShowGradient = GradientActive;
+
+            foreach (var (tab, columns) in _formattedColumnsByTab)
+            {
+                foreach (var row in GetFormattableRows(tab))
+                {
+                    row.ShowGradient = GradientActive;
+                    row.NotifyFormattingChanged();
+                }
+            }
+        }
+
+        private IEnumerable<IGradientFormattable> GetFormattableRows(string tab) => tab switch
+        {
+            "trip_stops" => TripStops.Cast<IGradientFormattable>(),
+            "trips" => Trips.Cast<IGradientFormattable>(),
+            "rounds" => Rounds.Cast<IGradientFormattable>(),
+            "daily_records" => DailyRecords.Cast<IGradientFormattable>(),
+            "all_data" => GetAllTreeNodes(),
+            _ => Enumerable.Empty<IGradientFormattable>(),
+        };
+
+        private IEnumerable<IGradientFormattable> GetAllTreeNodes()
+        {
+            foreach (var day in AllDataTree)
+            {
+                yield return day;
+                foreach (var round in day.Rounds)
+                {
+                    yield return round;
+                    foreach (var trip in round.Trips)
+                    {
+                        yield return trip;
+                        foreach (var stop in trip.Stops)
+                            yield return stop;
+                    }
+                }
+            }
+        }
 
         [RelayCommand]
         private async Task SetActiveTab(string tab)

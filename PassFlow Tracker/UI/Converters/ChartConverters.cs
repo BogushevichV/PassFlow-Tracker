@@ -5,7 +5,6 @@ using System.Globalization;
 
 namespace PassFlow_Tracker.UI.Converters
 {
-    /// <summary>Конвертирует HeightRatio (0..1) в высоту столбца в пикселях.</summary>
     public class HeightRatioConverter : IValueConverter
     {
         public static readonly HeightRatioConverter Instance = new();

@@ -139,6 +139,9 @@
     <local:BoolToHighlightBackgroundConverter x:Key="BoolToHighlightBackgroundConverter"/>
     <local:BoolToHighlightForegroundConverter x:Key="BoolToHighlightForegroundConverter"/>
     <local:BoolToReplacedColorConverter x:Key="BoolToReplacedColorConverter"/>
+    <local:ColumnBackgroundConverter x:Key="ColumnBackgroundConverter"/>
+    <local:ColorSchemeBorderConverter x:Key="ColorSchemeBorderConverter"/>
+    <local:ColorSchemeBorderThicknessConverter x:Key="ColorSchemeBorderThicknessConverter"/>
   </Window.Resources>
 
   <Design.DataContext>
@@ -252,7 +255,7 @@
                       <TextBlock Text="Настройка градиента" FontWeight="SemiBold" FontSize="13"/>
                       <StackPanel Spacing="4">
                         <TextBlock Text="Направление" FontSize="11" Foreground="#64748B"/>
-                        <ComboBox SelectedIndex="0" HorizontalAlignment="Stretch" FontSize="12">
+                        <ComboBox SelectedIndex="{Binding GradientDirectionIndex}" HorizontalAlignment="Stretch" FontSize="12">
                           <ComboBoxItem Content="Мин. → Макс. (Светлый к тёмному)"/>
                           <ComboBoxItem Content="Макс. → Мин. (Тёмный к светлому)"/>
                         </ComboBox>
@@ -261,18 +264,38 @@
                         <TextBlock Text="Цветовая гамма" FontSize="11" Foreground="#64748B"/>
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <Border Width="24" Height="24" CornerRadius="4" Background="#DBEAFE"
-                                  BorderBrush="#3B82F6" BorderThickness="2" Cursor="Hand"/>
+                                  BorderBrush="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderConverter}, ConverterParameter=0}"
+                                  BorderThickness="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderThicknessConverter}, ConverterParameter=0}"
+                                  Cursor="Hand">
+                            <Button Background="Transparent" BorderThickness="0" Padding="0"
+                                    Command="{Binding SelectColorSchemeCommand}" CommandParameter="0"/>
+                          </Border>
                           <Border Width="24" Height="24" CornerRadius="4" Background="#DCFCE7"
-                                  BorderBrush="#E2E8F0" BorderThickness="1" Cursor="Hand"/>
+                                  BorderBrush="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderConverter}, ConverterParameter=1}"
+                                  BorderThickness="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderThicknessConverter}, ConverterParameter=1}"
+                                  Cursor="Hand">
+                            <Button Background="Transparent" BorderThickness="0" Padding="0"
+                                    Command="{Binding SelectColorSchemeCommand}" CommandParameter="1"/>
+                          </Border>
                           <Border Width="24" Height="24" CornerRadius="4" Background="#FFE4E6"
-                                  BorderBrush="#E2E8F0" BorderThickness="1" Cursor="Hand"/>
+                                  BorderBrush="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderConverter}, ConverterParameter=2}"
+                                  BorderThickness="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderThicknessConverter}, ConverterParameter=2}"
+                                  Cursor="Hand">
+                            <Button Background="Transparent" BorderThickness="0" Padding="0"
+                                    Command="{Binding SelectColorSchemeCommand}" CommandParameter="2"/>
+                          </Border>
                           <Border Width="24" Height="24" CornerRadius="4" Background="#FEF9C3"
-                                  BorderBrush="#E2E8F0" BorderThickness="1" Cursor="Hand"/>
+                                  BorderBrush="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderConverter}, ConverterParameter=3}"
+                                  BorderThickness="{Binding SelectedColorSchemeIndex, Converter={StaticResource ColorSchemeBorderThicknessConverter}, ConverterParameter=3}"
+                                  Cursor="Hand">
+                            <Button Background="Transparent" BorderThickness="0" Padding="0"
+                                    Command="{Binding SelectColorSchemeCommand}" CommandParameter="3"/>
+                          </Border>
                         </StackPanel>
                       </StackPanel>
                       <StackPanel Spacing="4">
                         <TextBlock Text="Частота смены (шаги)" FontSize="11" Foreground="#64748B"/>
-                        <Slider Minimum="2" Maximum="10" Value="5"/>
+                        <Slider Minimum="2" Maximum="10" Value="{Binding GradientSteps}"/>
                       </StackPanel>
                     </StackPanel>
                   </Border>
@@ -287,13 +310,38 @@
                     <TextBlock Text="{Binding GradientButtonLabel}" FontSize="10" FontWeight="Medium"/>
                   </StackPanel>
                 </Button>
-                <Button Classes="ribbon">
+                <Grid>
+                <Button Classes="ribbon" Command="{Binding ToggleCellFilterMenuCommand}">
                   <StackPanel Orientation="Horizontal" Spacing="4">
                     <PathIcon Data="M4.25 5.61C6.27 8.2 10 13 10 13v6c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-6s3.72-4.8 5.74-7.39A.998.998 0 0 0 18.95 4H5.04a1 1 0 0 0-.79 1.61z"
                               Width="12" Height="12" Foreground="#475569"/>
                     <TextBlock Text="Фильтры ячеек" FontSize="10" FontWeight="Medium"/>
                   </StackPanel>
                 </Button>
+
+                <!-- Cell Filter Popover -->
+                <Popup IsOpen="{Binding ShowCellFilterMenu}" Placement="Bottom"
+                       IsLightDismissEnabled="True">
+                  <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1"
+                          CornerRadius="6" Padding="14" Width="260"
+                          BoxShadow="0 8 24 0 #1A000000">
+                    <StackPanel Spacing="12">
+                      <TextBlock Text="Форматирование колонки" FontWeight="SemiBold" FontSize="13"/>
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="Колонка" FontSize="11" Foreground="#64748B"/>
+                        <ComboBox ItemsSource="{Binding AvailableColumns}"
+                                  SelectedItem="{Binding SelectedColumn}"
+                                  HorizontalAlignment="Stretch" FontSize="12"/>
+                      </StackPanel>
+                      <Button Classes="ribbon" HorizontalAlignment="Stretch"
+                              Command="{Binding ApplyColumnFormattingCommand}"
+                              Background="#2563EB" Foreground="White">
+                        <TextBlock Text="Применить" FontWeight="SemiBold"/>
+                      </Button>
+                    </StackPanel>
+                  </Border>
+                </Popup>
+                </Grid>
               </StackPanel>
             </StackPanel>
             <TextBlock Text="ФОРМАТИРОВАНИЕ" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Center"
@@ -706,12 +754,33 @@
                             <TextBlock Text="{Binding RecordDate}" Foreground="#1D4ED8" FontWeight="SemiBold"/>
                           </StackPanel>
                           <TextBlock Grid.Column="1" Text="—" Foreground="#94A3B8" Margin="4,0"/>
-                          <TextBlock Grid.Column="2" Text="{Binding Entered}" Foreground="#16A34A"
-                                     FontWeight="SemiBold" TextAlignment="Right"/>
-                          <TextBlock Grid.Column="3" Text="{Binding Exited}" Foreground="#DC2626"
-                                     FontWeight="SemiBold" TextAlignment="Right"/>
-                          <TextBlock Grid.Column="4" Text="{Binding Transported}" FontWeight="Bold"
-                                     Foreground="#1E293B" TextAlignment="Right" Margin="0,0,8,0"/>
+                          <Border Grid.Column="2" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Entered}" Foreground="#16A34A"
+                                       FontWeight="SemiBold" TextAlignment="Right"/>
+                          </Border>
+                          <Border Grid.Column="3" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Exited}" Foreground="#DC2626"
+                                       FontWeight="SemiBold" TextAlignment="Right"/>
+                          </Border>
+                          <Border Grid.Column="4" CornerRadius="2" Padding="2,0" Margin="0,0,8,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Transported}" FontWeight="Bold"
+                                       Foreground="#1E293B" TextAlignment="Right"/>
+                          </Border>
                         </Grid>
                       </Border>
                     </TreeDataTemplate>
@@ -733,12 +802,30 @@
                           <TextBlock Grid.Column="1" Foreground="#64748B" Margin="4,0">
                             <Run Text="{Binding TimeFrom}"/><Run Text=" – "/><Run Text="{Binding TimeTo}"/>
                           </TextBlock>
-                          <TextBlock Grid.Column="2" Text="{Binding Entered}" Foreground="#16A34A"
-                                     TextAlignment="Right"/>
-                          <TextBlock Grid.Column="3" Text="{Binding Exited}" Foreground="#DC2626"
-                                     TextAlignment="Right"/>
-                          <TextBlock Grid.Column="4" Text="{Binding Transported}" Foreground="#334155"
-                                     TextAlignment="Right" Margin="0,0,8,0"/>
+                          <Border Grid.Column="2" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Entered}" Foreground="#16A34A" TextAlignment="Right"/>
+                          </Border>
+                          <Border Grid.Column="3" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Exited}" Foreground="#DC2626" TextAlignment="Right"/>
+                          </Border>
+                          <Border Grid.Column="4" CornerRadius="2" Padding="2,0" Margin="0,0,8,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Transported}" Foreground="#334155" TextAlignment="Right"/>
+                          </Border>
                         </Grid>
                       </Border>
                     </TreeDataTemplate>
@@ -760,12 +847,30 @@
                           <TextBlock Grid.Column="1" Foreground="#64748B" Margin="4,0">
                             <Run Text="{Binding TimeFrom}"/><Run Text=" – "/><Run Text="{Binding TimeTo}"/>
                           </TextBlock>
-                          <TextBlock Grid.Column="2" Text="{Binding Entered}" Foreground="#16A34A"
-                                     TextAlignment="Right"/>
-                          <TextBlock Grid.Column="3" Text="{Binding Exited}" Foreground="#DC2626"
-                                     TextAlignment="Right"/>
-                          <TextBlock Grid.Column="4" Text="{Binding Transported}" Foreground="#334155"
-                                     TextAlignment="Right" Margin="0,0,8,0"/>
+                          <Border Grid.Column="2" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Entered}" Foreground="#16A34A" TextAlignment="Right"/>
+                          </Border>
+                          <Border Grid.Column="3" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Exited}" Foreground="#DC2626" TextAlignment="Right"/>
+                          </Border>
+                          <Border Grid.Column="4" CornerRadius="2" Padding="2,0" Margin="0,0,8,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Transported}" Foreground="#334155" TextAlignment="Right"/>
+                          </Border>
                         </Grid>
                       </Border>
                     </TreeDataTemplate>
@@ -787,12 +892,33 @@
                           <TextBlock Grid.Column="1" Foreground="#1E293B" FontSize="11" Margin="4,0">
                             <Run Text="{Binding TimeFrom}"/><Run Text=" – "/><Run Text="{Binding TimeTo}"/>
                           </TextBlock>
-                          <TextBlock Grid.Column="2" Text="{Binding Entered}" Foreground="#16A34A"
-                                     TextAlignment="Right" FontSize="12"/>
-                          <TextBlock Grid.Column="3" Text="{Binding Exited}" Foreground="#DC2626"
-                                     TextAlignment="Right" FontSize="12"/>
-                          <TextBlock Grid.Column="4" Text="{Binding Transported}" Foreground="#1E293B"
-                                     TextAlignment="Right" FontSize="12" Margin="0,0,8,0"/>
+                          <Border Grid.Column="2" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Entered}" Foreground="#16A34A"
+                                       TextAlignment="Right" FontSize="12"/>
+                          </Border>
+                          <Border Grid.Column="3" CornerRadius="2" Padding="2,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Exited}" Foreground="#DC2626"
+                                       TextAlignment="Right" FontSize="12"/>
+                          </Border>
+                          <Border Grid.Column="4" CornerRadius="2" Padding="2,0" Margin="0,0,8,0">
+                            <Border.Background>
+                              <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                                <Binding /><Binding Path="FormattingVersion"/>
+                              </MultiBinding>
+                            </Border.Background>
+                            <TextBlock Text="{Binding Transported}" Foreground="#1E293B"
+                                       TextAlignment="Right" FontSize="12"/>
+                          </Border>
                         </Grid>
                       </Border>
                     </DataTemplate>
@@ -810,9 +936,63 @@
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Автобус"    Binding="{ReflectionBinding UnitName}"    Width="*"/>
                 <DataGridTextColumn Header="Дата"       Binding="{ReflectionBinding RecordDate}"  Width="*"/>
-                <DataGridTextColumn Header="Вошло"      Binding="{ReflectionBinding Entered}"     Width="*"/>
-                <DataGridTextColumn Header="Вышло"      Binding="{ReflectionBinding Exited}"      Width="*"/>
-                <DataGridTextColumn Header="Перевезено" Binding="{ReflectionBinding Transported}" Width="*"/>
+                <DataGridTemplateColumn Header="Вошло" Width="*">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Entered}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Entered}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Вышло" Width="*">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Exited}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Exited}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Перевезено" Width="*">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Transported}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Transported}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
               </DataGrid.Columns>
             </DataGrid>
 
@@ -823,13 +1003,85 @@
                       IsReadOnly="False" AutoGenerateColumns="False" HeadersVisibility="Column"
                       VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
               <DataGrid.Columns>
-                <DataGridTextColumn Header="№ Остановки"       Binding="{ReflectionBinding StopNumber}" Width="Auto"/>
+                <DataGridTemplateColumn Header="№ Остановки" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="StopNumber">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding StopNumber}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding StopNumber}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Название"          Binding="{ReflectionBinding StopName}" Width="*"/>
                 <DataGridTextColumn Header="Период"            IsReadOnly="True"  Binding="{ReflectionBinding Period}" Width="*"/>
                 <DataGridTextColumn Header="Имя маршрута"      IsReadOnly="True" IsVisible="{Binding IsRouteColumnVisible}" Binding="{ReflectionBinding RouteName}" Width="Auto"/>
-                <DataGridTextColumn Header="Вошло"             Binding="{ReflectionBinding Entered}"    Width="Auto"/>
-                <DataGridTextColumn Header="Вышло"             Binding="{ReflectionBinding Exited}"     Width="Auto"/>
-                <DataGridTextColumn Header="Перевезено ↕"      Binding="{ReflectionBinding Transported}" Width="Auto"/>
+                <DataGridTemplateColumn Header="Вошло" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Entered}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Entered}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Вышло" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Exited}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Exited}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Перевезено ↕" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Transported}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Transported}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
               </DataGrid.Columns>
             </DataGrid>
 
@@ -845,9 +1097,63 @@
                 <DataGridTextColumn Header="Куда"       Binding="{ReflectionBinding EndPoint}"    Width="*"/>
                 <DataGridTextColumn Header="Время От"   Binding="{ReflectionBinding TimeFrom}"    Width="155"/>
                 <DataGridTextColumn Header="Время До"   Binding="{ReflectionBinding TimeTo}"      Width="155"/>
-                <DataGridTextColumn Header="Вошло"      Binding="{ReflectionBinding Entered}"     Width="Auto"/>
-                <DataGridTextColumn Header="Вышло"      Binding="{ReflectionBinding Exited}"      Width="Auto"/>
-                <DataGridTextColumn Header="Перевезено" Binding="{ReflectionBinding Transported}" Width="Auto"/>
+                <DataGridTemplateColumn Header="Вошло" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Entered}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Entered}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Вышло" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Exited}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Exited}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Перевезено" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Transported}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Transported}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
               </DataGrid.Columns>
             </DataGrid>
 
@@ -863,9 +1169,63 @@
                 <DataGridTextColumn Header="Куда"       Binding="{ReflectionBinding EndPoint}"    Width="*"/>
                 <DataGridTextColumn Header="Время От"   Binding="{ReflectionBinding TimeFrom}"    Width="155"/>
                 <DataGridTextColumn Header="Время До"   Binding="{ReflectionBinding TimeTo}"      Width="155"/>
-                <DataGridTextColumn Header="Вошло"      Binding="{ReflectionBinding Entered}"     Width="Auto"/>
-                <DataGridTextColumn Header="Вышло"      Binding="{ReflectionBinding Exited}"      Width="Auto"/>
-                <DataGridTextColumn Header="Перевезено" Binding="{ReflectionBinding Transported}" Width="Auto"/>
+                <DataGridTemplateColumn Header="Вошло" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Entered">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Entered}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Entered}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Вышло" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Exited">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Exited}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Exited}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Перевезено" Width="Auto">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                      <Border Padding="8,4">
+                        <Border.Background>
+                          <MultiBinding Converter="{StaticResource ColumnBackgroundConverter}" ConverterParameter="Transported">
+                            <Binding /><Binding Path="FormattingVersion"/>
+                          </MultiBinding>
+                        </Border.Background>
+                        <TextBlock Text="{Binding Transported}" VerticalAlignment="Center"/>
+                      </Border>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                  <DataGridTemplateColumn.CellEditingTemplate>
+                    <DataTemplate>
+                      <TextBox Text="{Binding Transported}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
               </DataGrid.Columns>
             </DataGrid>
 

@@ -1,4 +1,4 @@
-﻿using DocumentFormat.OpenXml.Drawing;
+using DocumentFormat.OpenXml.Drawing;
 using PassFlow_Tracker.Application.Services;
 using PassFlow_Tracker.Domain.Models;
 using PassFlow_Tracker.Infrastructure.Logging;
