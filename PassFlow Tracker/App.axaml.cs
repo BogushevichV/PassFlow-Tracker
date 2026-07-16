@@ -1,36 +1,76 @@
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
-using PassFlow_Tracker.ViewModels;
-using PassFlow_Tracker.Views;
+using PassFlow_Tracker.Application.Services;
+using PassFlow_Tracker.Application.Services.IPC;
+using PassFlow_Tracker.Domain.Models.Communication;
+using PassFlow_Tracker.Infrastructure.Database;
+using PassFlow_Tracker.Infrastructure.Logging;
+using PassFlow_Tracker.UI.ViewModels;
+using PassFlow_Tracker.UI.Views;
+using System;
+using System.IO;
+using System.Linq;
 
 namespace PassFlow_Tracker
 {
-    public partial class App : Application
+    public partial class App : Avalonia.Application
     {
+        private IpcHost? _IpcHost;
+
+        private const string LogContext = "App";
+
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
         }
 
-        public override void OnFrameworkInitializationCompleted()
+        public override async void OnFrameworkInitializationCompleted()
         {
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            try
             {
-                // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
-                // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
-                DisableAvaloniaDataAnnotationValidation();
-                desktop.MainWindow = new MainWindow
-                {
-                    DataContext = new MainWindowViewModel(),
-                };
-            }
+                AppLogger.Info($"[{LogContext}] Запуск приложения");
 
-            base.OnFrameworkInitializationCompleted();
+                var db = new DbConnectionFactory();
+                var json = new JsonImportService(db);
+                var analytics = new TransportAnalytics(db);
+
+                AppLogger.Info($"[{LogContext}] Сервисы инициализированы");
+
+                var dispatcher = new CommandDispatcher(json, analytics);
+                _IpcHost = new IpcHost(dispatcher);
+
+                _ = _IpcHost.StartAsync();
+
+                if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
+                    // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
+
+                    desktop.Exit += (s, e) =>
+                    {
+                        AppLogger.Info($"[{LogContext}] Приложение завершается, останавливаем IPC-хост...");
+                        _IpcHost?.Stop();
+                        AppLogger.Info($"[{LogContext}] IPC-хост остановлен");
+                    };
+
+                    DisableAvaloniaDataAnnotationValidation();
+                    desktop.MainWindow = new MainWindow();
+                }
+
+                AppLogger.Info($"[{LogContext}] Приложение успешно запущено");
+                base.OnFrameworkInitializationCompleted();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[{LogContext}] Критическая ошибка при запуске приложения", ex);
+                throw;
+            }
         }
+
+
 
         private void DisableAvaloniaDataAnnotationValidation()
         {
